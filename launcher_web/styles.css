@@ -126,26 +126,25 @@ nav .lang-btn.active{color:#fff;background:rgba(var(--brand-rgb),.18);
 button:focus-visible,.nav-link:focus-visible,.card:focus-visible,
 .detail-back:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
 
-/* ── Status bar (floating pills) ───────────────────────────────────── */
-/* Absolute, not fixed: pinned to the viewport they sat on top of every card
-   the page scrolled under them (readings strip, charts, calendar). */
-.status-float{position:absolute;top:68px;right:24px;z-index:90;display:flex;gap:8px;
-              animation:slideDown .6s cubic-bezier(.22,1,.36,1) both;animation-delay:.3s}
-@keyframes slideDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
-.s-pill{display:flex;align-items:center;gap:6px;padding:6px 12px;
-        background:rgba(7,10,22,.9);backdrop-filter:blur(16px);
-        border:1px solid rgba(255,255,255,.06);border-radius:999px;font-size:12px;
-        transition:border-color .25s,transform .25s,box-shadow .25s;cursor:default;
-        box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.s-pill:hover{border-color:rgba(255,255,255,.12);transform:translateY(-1px);
-              box-shadow:0 4px 16px rgba(0,0,0,.3)}
-.s-dot{width:7px;height:7px;border-radius:50%;flex:none;transition:background .3s,box-shadow .3s}
-.s-dot.ok{background:var(--success);box-shadow:0 0 8px rgba(var(--success-rgb),.5)}
-.s-dot.bad{background:var(--danger);box-shadow:0 0 8px rgba(239,68,68,.5)}
+/* ── Status lights (under the hero hand) ────────────────────────────── */
+/* A quiet readout: square tiles on the card surface, one square light each,
+   sized to the cap height of the label beside it. */
+.hero-status{margin:28px auto 0;display:flex;flex-direction:column;align-items:center;gap:12px;
+             animation:fadeUp .8s cubic-bezier(.22,1,.36,1) both;animation-delay:.55s}
+.hs-label{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+          color:var(--text-muted)}
+.hs-row{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:100%}
+.s-pill{display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;white-space:nowrap;
+        background:var(--surface);border:1px solid var(--border);border-radius:0;
+        font-size:13px;cursor:default;transition:border-color .2s}
+.s-pill:hover{border-color:rgba(var(--brand-rgb),.45)}
+.s-dot{width:10px;height:10px;border-radius:0;flex:none;opacity:.7;transition:background .3s}
+.s-dot.ok{background:var(--success)}
+.s-dot.bad{background:var(--danger)}
 /* Not known yet (no hub has answered) - not the same as missing. */
-.s-dot.unknown{background:var(--text-disabled);box-shadow:none}
+.s-dot.unknown{background:var(--text-disabled)}
 .s-pill b{font-weight:600;color:var(--text)}
-.s-pill span{color:var(--text-muted)}
+.s-pill span{color:var(--text-muted);font-variant-numeric:tabular-nums}
 
 /* ── Hero ──────────────────────────────────────────────────────────── */
 /* A dark pool behind the title and the hand, so they sit clear of the maze. */
@@ -178,7 +177,8 @@ button:focus-visible,.nav-link:focus-visible,.card:focus-visible,
 /* ── Section headers ───────────────────────────────────────────────── */
 .section{padding:0 48px 48px;max-width:1200px;margin:0 auto}
 .section-head{display:flex;align-items:center;gap:12px;margin-bottom:24px}
-.section-head .sh-line{flex:1;height:1px;background:linear-gradient(90deg,var(--brand-dim),transparent)}
+.section-head .sh-line{flex:1;height:2px;border-radius:1px;
+                      background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,.08))}
 .section-head h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;
                  color:var(--brand);font-weight:600;white-space:nowrap;text-wrap:balance}
 
@@ -196,13 +196,14 @@ button:focus-visible,.nav-link:focus-visible,.card:focus-visible,
 .card{position:absolute;top:0;left:50%;width:360px;transform:translateX(-50%);
       will-change:transform,opacity;
       background:linear-gradient(180deg,#161D33,var(--surface));
-      border:1px solid var(--border);border-radius:var(--radius);
+      border:2px solid rgba(255,255,255,.28);border-radius:var(--radius);
       overflow:hidden;cursor:pointer;
       box-shadow:0 20px 60px rgba(0,0,0,.5);
       transition:transform .5s cubic-bezier(.4,0,.2,1),
                  opacity .5s ease,filter .5s ease,box-shadow .3s ease}
 .card.is-active{box-shadow:0 24px 70px rgba(0,0,0,.55),
-                0 0 0 1px rgba(var(--brand-rgb),.35),0 0 30px rgba(var(--brand-rgb),.18)}
+                0 0 30px rgba(var(--brand-rgb),.18)}
+.card.is-active{border-color:rgba(255,255,255,.6)}
 /* Hovering the centred card lifts it forward. The ring's transform is written
    inline by layout(), so the enlargement rides a variable it multiplies in;
    layout() pins the top edge so the growth never climbs into the header.
@@ -212,7 +213,7 @@ button:focus-visible,.nav-link:focus-visible,.card:focus-visible,
                       transition:transform .18s cubic-bezier(.2,0,0,1),
                                  opacity .5s ease,filter .5s ease,box-shadow .18s ease;
                       box-shadow:0 30px 90px rgba(0,0,0,.6),
-                      0 0 0 1px rgba(var(--brand-rgb),.5),0 0 40px rgba(var(--brand-rgb),.25)}
+                      0 0 40px rgba(var(--brand-rgb),.25);border-color:rgba(255,255,255,.75)}
 /* Circular prev/next controls + dot indicators */
 .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:200;
               width:44px;height:44px;border-radius:50%;cursor:pointer;
@@ -248,7 +249,10 @@ button:focus-visible,.nav-link:focus-visible,.card:focus-visible,
 .card-video{width:100%;aspect-ratio:16/9;border-radius:8px;background:var(--surface-2);
             border:1px solid var(--border);margin-bottom:16px;overflow:hidden;position:relative}
 .card-video video{width:100%;height:100%;object-fit:cover;display:block}
-.card-video .card-art{width:100%;height:100%;display:block;padding:8% 4%}
+.card-video .card-wip{position:absolute;inset:0;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:10px;color:var(--text-muted);
+            font-size:13px;font-weight:500;letter-spacing:.02em}
+.card-video .card-wip svg{width:28px;height:28px;color:var(--brand-soft);opacity:.8}
 /* Previews play continuously; a gray veil dims them until the card is hovered. */
 .card-video.has-video::after{content:"";position:absolute;inset:0;pointer-events:none;
             background:rgba(22,29,48,.6);transition:opacity .3s ease}
@@ -1119,6 +1123,42 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
          background:none;color:var(--text-muted);transition:color .15s,border-color .15s}
 .who-act:hover{color:var(--brand);border-color:var(--brand)}
 .who-act:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* The patients behind a group's sessions, by visit day (app.js
+   renderAnalysisPatients). Diagnosis tints use brand hues, never a status
+   colour, so a diagnosis can never read as a verdict. */
+.analysis-patients{display:grid;gap:16px;margin-bottom:22px;padding:18px 20px;
+                   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.pt-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.pt-head h3{font-size:15px;font-weight:600}
+.pt-head > span{font-size:12.5px;color:var(--text-muted)}
+.pt-head .who-act{margin-left:auto}
+.pt-day-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:8px}
+.pt-day-head strong{font-size:13px;font-weight:650}
+.pt-day-head span{font-size:12px;color:var(--text-disabled)}
+.pt-day-head .pt-mix{margin-left:auto;font-variant-numeric:tabular-nums}
+.pt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.pt-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;
+         min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;
+         background:var(--surface-2);color:var(--text);font:inherit;text-align:left;cursor:pointer;
+         transition:background .16s,border-color .16s}
+.pt-card:hover{background:rgba(var(--brand-rgb),.08);border-color:rgba(var(--brand-rgb),.4)}
+.pt-card.is-active{background:rgba(var(--brand-rgb),.16);border-color:var(--brand)}
+.pt-card:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.pt-num{font-family:'JetBrains Mono','Consolas',monospace;font-size:17px;font-weight:700;
+        font-variant-numeric:tabular-nums}
+.pt-dx{padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.03em;
+       background:rgba(var(--brand-rgb),.16);border:1px solid rgba(var(--brand-rgb),.4)}
+.pt-dx.dx-et{background:rgba(var(--accent-2-rgb),.16);border-color:rgba(var(--accent-2-rgb),.45)}
+.pt-dx.dx-pst{background:rgba(var(--warm-rgb),.14);border-color:rgba(var(--warm-rgb),.45)}
+.pt-time,.pt-runs{grid-column:1 / -1;font-size:11.5px;font-variant-numeric:tabular-nums}
+.pt-time{color:var(--text-muted)}
+.pt-runs{color:var(--text-disabled)}
+.pt-demo{color:var(--warm);font-weight:600}
+@media(max-width:640px){
+  .analysis-patients{padding:14px}
+  .pt-grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+}
 @media (prefers-reduced-motion:reduce){.who-act{transition:none}}
 #analysis-profile[hidden]{display:none}
 
@@ -1161,6 +1201,7 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
 .trend-legend{display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--text-muted)}
 .trend-legend span{display:inline-flex;align-items:center;gap:6px}
 .trend-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.trend-legend i.lg-demo{border-radius:50%;box-shadow:inset 0 0 0 2px var(--text-muted)}
 
 /* Supporting metrics */
 .trend-support{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;
@@ -2026,6 +2067,11 @@ button.cal-day{cursor:pointer;transition:background .16s,border-color .16s}
            font-family:'JetBrains Mono','Consolas',var(--font-cjk),monospace}
 .cal-value small{font-size:10px;font-weight:500;color:var(--text-muted);margin-left:2px}
 .cal-value.cal-unscored{color:var(--text-disabled);font-weight:500}
+/* A group's run: which patient, under the time; a demo run says so. */
+.cal-pt{display:block;font-size:11px;font-weight:600;color:var(--brand-soft)}
+.cal-demo{margin-left:8px;padding:1px 7px;border:1px solid rgba(var(--warm-rgb),.45);
+          border-radius:99px;font-family:'Inter','Segoe UI',var(--font-cjk),sans-serif;
+          font-size:10.5px;font-weight:600;color:var(--warm);vertical-align:2px}
 .cal-verdict{display:inline-flex;align-items:center;gap:6px;font-size:12px;
              color:var(--text-muted);white-space:nowrap}
 .cal-verdict i{width:7px;height:7px;border-radius:50%;flex:none;background:currentColor}

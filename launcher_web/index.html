@@ -83,7 +83,6 @@ button,input{font:inherit;color:inherit}
       <button class="lang-btn" data-lang="zh" lang="zh-Hant">繁中</button>
     </div>
   </nav>
-  <div class="status-float" id="status"></div>
 
   <!-- HOME -->
   <div class="page active" id="page-home">
@@ -92,6 +91,12 @@ button,input{font:inherit;color:inherit}
       <p class="sub" data-i18n="home.sub">made by Adam Chung.</p>
       <div class="hand-viz" id="hand-viz">
         <canvas id="hand3d"></canvas>
+      </div>
+      <!-- Hub readiness. #status is the whole block so the published site's
+           connector hides the label with the lights while no hub answers. -->
+      <div class="hero-status" id="status">
+        <div class="hs-label" data-i18n="home.status">Status</div>
+        <div class="hs-row" id="status-row"></div>
       </div>
     </div>
 
@@ -306,6 +311,7 @@ button,input{font:inherit;color:inherit}
       <div class="analysis-summary" id="analysis-summary"></div>
       <div class="seg" id="analysis-profile" role="tablist" aria-label="Filter by person" data-i18n-aria="analysis.person.aria"></div>
       <div class="analysis-who" id="analysis-who"></div>
+      <section class="analysis-patients" id="analysis-patients" hidden></section>
       <div class="seg" id="analysis-filter" role="tablist" aria-label="Filter by test" data-i18n-aria="analysis.filter.aria"></div>
       <div class="analysis-body" id="analysis-body"></div>
       <p class="analysis-disclaimer" data-i18n="analysis.disclaimer">

@@ -235,9 +235,12 @@
 
     const who = rec.profile && rec.profile.name;
     const face = window.profileAvatar ? window.profileAvatar(rec.profile, "xs") : I.person;
+    const pt = patientOf(rec);
     const chips = [
       who ? (rec.profile.kind === "group"
         ? `${face}${t("Group: {name}", { name: esc(who) })}` : `${face}${esc(who)}`) : null,
+      pt ? esc(t("Patient #{n} · {dx}", { n: pt.number, dx: diagName(pt) })) : null,
+      pt && pt.demo ? t("Demo run") : null,
       modeLabel(rec),
       rec.hand ? t(rec.hand) : null,
       m.duration_s != null ? `${fmtNum(m.duration_s)}s`

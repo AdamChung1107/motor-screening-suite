@@ -47,59 +47,15 @@ const TOOLS = [
     // feed; the idle veil on top of that leaves it unreadable. Play it bright.
     video:"/assets/videos/eye-movement.mp4", dimPreview:false },
   { key:"ddk", title:"Speech Test", file:"speech_test.py",
-    // No preview clip yet: a still of the loudness envelope the test scores,
-    // one peak per syllable with its onset dot, stands in for it.
-    art:(()=>{
-      const xs = [0,1,2,3,4,5,6,7,8,9,10,11].map(i => 22 + i*30);
-      const peaks = xs.map((x,i)=>{
-        const h = 38 + ((i*37)%3)*9;
-        return `M${x-10},120 C${x-6},120 ${x-5},${120-h} ${x},${120-h} C${x+5},${120-h} ${x+6},120 ${x+12},120`;
-      }).join(" ");
-      return `<svg class="card-art" viewBox="0 0 380 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        <line x1="10" y1="120" x2="370" y2="120" stroke="var(--border)" stroke-width="1"/>
-        <path d="${peaks}" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linejoin="round"/>
-        ${xs.map(x=>`<circle cx="${x-5}" cy="120" r="3" fill="var(--success)"/>`).join("")}
-      </svg>`;
-    })() },
+    video:"/assets/videos/speech.mp4" },
   { key:"tremor", title:"Hand Tremor Test", file:"tremor_test.py",
     // A supporting check, not a screening result (the way paced tapping sits
     // beside Big & Fast): docs/tests/TREMOR_RESTRUCTURE_PLAN.md §2.
-    // No preview clip yet: a still of what the test computes — one hand's
-    // tremor-band spectrum with a single peak standing out of the noise.
-    art:(()=>{
-      const pts = [];
-      for(let i=0;i<=60;i++){
-        const f = i/60, x = 20 + f*340;
-        const peak = 70*Math.exp(-Math.pow((f-0.36)/0.035,2));
-        const noise = 6 + 4*Math.abs(Math.sin(i*1.7)) + 3*Math.abs(Math.sin(i*0.61));
-        pts.push(`${x.toFixed(1)},${(122-noise-peak).toFixed(1)}`);
-      }
-      return `<svg class="card-art" viewBox="0 0 380 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        <rect x="${20+340*0.15}" y="20" width="${340*0.72}" height="102" fill="var(--brand)" opacity=".07"/>
-        <line x1="10" y1="122" x2="370" y2="122" stroke="var(--border)" stroke-width="1"/>
-        <polyline points="${pts.join(" ")}" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linejoin="round"/>
-        <circle cx="${20+340*0.36}" cy="${122-6-70}" r="4" fill="var(--warning)"/>
-      </svg>`;
-    })() },
+    video:"/assets/videos/tremor.mp4" },
   { key:"gait", title:"Walking Test", file:"gait_test.py",
-    // No preview clip yet: a still of the sit-to-stand trace the test scores,
-    // the hip rising to standing and back, five times, each stand marked.
-    art:(()=>{
-      const pts = [];
-      for(let i=0;i<=100;i++){
-        const f = i/100, x = 20 + f*340;
-        const ph = (f*5) % 1;
-        const s = Math.max(0, Math.min(1, ph < .45 ? ph/.3 : ph < .6 ? 1 : 1 - (ph-.6)/.3));
-        pts.push(`${x.toFixed(1)},${(122 - 86*s).toFixed(1)}`);
-      }
-      const ups = [0,1,2,3,4].map(k => 20 + ((k + .3)/5)*340);
-      return `<svg class="card-art" viewBox="0 0 380 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        <line x1="10" y1="122" x2="370" y2="122" stroke="var(--border)" stroke-width="1"/>
-        <line x1="10" y1="${122-86*.75}" x2="370" y2="${122-86*.75}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 4"/>
-        <polyline points="${pts.join(" ")}" fill="none" stroke="var(--brand)" stroke-width="2.2" stroke-linejoin="round"/>
-        ${ups.map(x=>`<circle cx="${x.toFixed(1)}" cy="${122-86*.75}" r="3.5" fill="var(--success)"/>`).join("")}
-      </svg>`;
-    })() },
+    // No preview clip yet, and the seated tier has not run live: say so
+    // plainly rather than stand a drawing in for a recording.
+    wip:true },
   { key:"tracking", title:"Hand Tracking / UDP", file:"hand_tracking.py",
     video:"/assets/videos/hand-tracking.mp4" },
 ];
@@ -308,7 +264,7 @@ function buildCards(){
         <h3>${title}</h3>
         <div class="live-badge ${on?"on":""}"><span class="live-pulse"></span>${t("Running — check the camera window")}</div>
         <div class="an-badge" role="status"><span class="an-pulse"></span><span data-an-text></span></div>
-        <div class="card-video${tool.video?" has-video":""}${tool.dimPreview===false?" no-veil":""}">${tool.video?`<video muted loop autoplay playsinline preload="auto" src="${tool.video}"></video>`:(tool.art||"")}</div>
+        <div class="card-video${tool.video?" has-video":""}${tool.dimPreview===false?" no-veil":""}">${tool.video?`<video muted loop autoplay playsinline disablepictureinpicture preload="auto" src="${tool.video}"></video>`:tool.wip?`<div class="card-wip">${I.walk}<span>${t("Work in progress")}</span></div>`:(tool.art||"")}</div>
         <div class="card-actions">
           <button class="btn btn-primary" data-go="${tool.key}" ${on?"disabled":""} aria-label="${t("Launch {name}",{name:title})}">${on?t("Running..."):I.play+" "+t("Launch")}</button>
           <button class="btn btn-danger" data-stop="${tool.key}" ${on?"":"disabled"} aria-label="${t("Stop {name}",{name:title})}">${I.stop} ${t("Stop")}</button>
@@ -940,7 +896,7 @@ function addRipple(btn, e){
 }
 
 /* ── Status pills ────────────────────────────────────────────────── */
-const statusEl = document.getElementById("status");
+const statusEl = document.getElementById("status-row");
 let wasRunning = false;
 
 /* Signature-guarded, like renderCamChips(): the 3 s poll must not churn the
@@ -955,10 +911,10 @@ function renderStatus(s){
   if(statusEl.dataset.sig !== sig){
     let html = "";
     html += pill(s.python == null ? null : true, "Python", s.python);
-    html += pill(s.model_present, t("Hand model"), t(s.model_present ? "Ready" : "Missing"));
-    html += pill(s.face_model_present, t("Face model"), t(s.face_model_present ? "Ready" : "Missing"));
-    html += pill(s.opencv, "OpenCV", t(s.opencv ? "OK" : "Missing"));
-    html += pill(s.mediapipe, "MediaPipe", t(s.mediapipe ? "OK" : "Missing"));
+    html += pill(s.model_present, t("Hand model"));
+    html += pill(s.face_model_present, t("Face model"));
+    html += pill(s.opencv, "OpenCV");
+    html += pill(s.mediapipe, "MediaPipe");
     statusEl.innerHTML = html;
     statusEl.dataset.sig = sig;
   }
@@ -990,11 +946,13 @@ function renderStatus(s){
 
 /* `ok` is tri-state: null means "not known yet" — a hub that has not answered
    is not the same thing as a missing dependency, and a green dot beside the
-   literal `null` was the worst of both readings. */
+   literal `null` was the worst of both readings. The light carries the state;
+   only Python shows a value (its version), and the state stays in the tooltip. */
 function pill(ok, label, value){
   const cls = ok == null ? "unknown" : (ok ? "ok" : "bad");
-  const shown = value == null || value === "" ? "&#8212;" : value;
-  return `<div class="s-pill"><span class="s-dot ${cls}"></span><b>${label}</b>&#160;<span>${shown}</span></div>`;
+  const state = t(ok == null ? "Unknown" : (ok ? "Ready" : "Missing"));
+  const shown = value === undefined ? "" : `<span>${value == null || value === "" ? "&#8212;" : value}</span>`;
+  return `<div class="s-pill" title="${label}: ${state}"><span class="s-dot ${cls}" aria-hidden="true"></span><b>${label}</b>${shown}</div>`;
 }
 
 /* ── Toast ────────────────────────────────────────────────────────── */
@@ -1208,6 +1166,33 @@ const ST = {
 };
 const INK_MUTED = "#B8BED0", INK_DIM = "#8089A6", GRID = "#2A3350", LINE_C = "#989EFF";
 
+/* Which patient a group's session belongs to. A group is many people, so
+   after a clinic visit its sessions are tagged by hand from their saved times:
+   record.patient = {number, day, diagnosis, demo?}. `demo` marks a run the
+   examiner did to show the patient the test, not the patient's own. */
+const DIAGNOSES = {
+  pd:  {short:"PD",  name:"Parkinson's disease"},
+  et:  {short:"ET",  name:"Essential tremor"},
+  pst: {short:"PST", name:"Parkinsonian tremor"},
+};
+function patientOf(s){
+  const p = s && s.patient;
+  return p && Number.isFinite(p.number) ? p : null;
+}
+// Two groups can each have a patient 3, so the key carries the group.
+function patientKey(s){
+  const p = patientOf(s);
+  return p ? `${(s.profile && s.profile.id) || ""}:${p.number}` : null;
+}
+function diagShort(p){
+  const d = DIAGNOSES[p.diagnosis];
+  return d ? d.short : String(p.diagnosis || "").toUpperCase();
+}
+function diagName(p){
+  const d = DIAGNOSES[p.diagnosis];
+  return d ? t(d.name) : String(p.diagnosis || "");
+}
+
 let analysisFilter = "all";
 /* Whose history is on screen. "all" pools everyone - what this page did before
    profiles existed - "none" is the sessions nobody claimed, and anything else
@@ -1215,6 +1200,7 @@ let analysisFilter = "all";
    whoever the chip is set to, so the dashboard opens on the patient who is
    about to be tested rather than on a pooled line. */
 let analysisProfile = null;
+let analysisPatient = null;   // patientKey() of the one patient shown, or null
 let analysisSessions = null;
 let analysisModes = {};   // per-test selected sub-mode (e.g. finger_tapping → "paced")
 let analysisViews = {};   // per-test selected score (spiral → "tremor")
@@ -1291,15 +1277,24 @@ function profileFilter(){
   return active && has(active) && !window.isGroupProfile?.(active) ? active : "all";
 }
 
-/* The one place the person filter is applied. The chart, the calendar and the
-   home readings strip all read through it, so they cannot disagree about which
-   sessions exist. */
-function visibleSessions(){
+function profileSessions(){
   const list = analysisSessions || [];
   const f = profileFilter();
   if(f === "all") return list;
   if(f === "none") return list.filter(sn => !(sn.profile && sn.profile.id));
   return list.filter(sn => sn.profile && sn.profile.id === f);
+}
+
+/* The one place the person and patient filters are applied. The chart, the
+   calendar and the home readings strip all read through it, so they cannot
+   disagree about which sessions exist. */
+function visibleSessions(){
+  const list = profileSessions();
+  if(!analysisPatient) return list;
+  const mine = list.filter(sn => patientKey(sn) === analysisPatient);
+  if(mine.length) return mine;
+  analysisPatient = null;          // a stale pick, as profileFilter() drops one
+  return list;
 }
 
 /* A group's sessions are different people: charted as separate dots, with no
@@ -1315,6 +1310,7 @@ function pooledView(){
 
 function setAnalysisProfile(id){
   analysisProfile = id;
+  analysisPatient = null;
   renderAnalysis();
   renderVitals();
 }
@@ -1338,6 +1334,7 @@ function renderAnalysis(){
 
   renderAnalysisSummary(sessions, byTest);
   renderAnalysisPeople();
+  renderAnalysisPatients();
   renderAnalysisFilter(byTest);
 
   const body = document.getElementById("analysis-body");
@@ -1474,10 +1471,81 @@ function whoLine(filterId){
   if(!pr || !pr.name) return acts;
   const detail = window.describeProfile?.(pr) || "";
   const av = window.profileAvatar ? window.profileAvatar(pr, "sm") : "";
+  const pt = analysisPatient && patientOf(visibleSessions()[0]);
   return `${av}<span class="who-name">${esc(pr.name)}</span>`
     + (detail ? `<span class="who-detail">${esc(detail)}</span>` : "")
-    + (pooledView() ? `<span class="who-note">${t("Different people. Not one person's trend.")}</span>` : "")
+    + (pt ? `<span class="who-note">${esc(t("Patient #{n} · {dx}", {n:pt.number, dx:diagName(pt)}))}</span>`
+      : pooledView() ? `<span class="who-note">${t("Different people. Not one person's trend.")}</span>` : "")
     + acts;
+}
+
+/* The patients behind a group's sessions, by visit day (record.patient).
+   Drawn only when the sessions on screen carry patient tags. Choosing a
+   patient narrows every card to their runs; choosing them again shows all. */
+function renderAnalysisPatients(){
+  const el = document.getElementById("analysis-patients");
+  if(!el) return;
+  const byKey = new Map();
+  profileSessions().forEach(sn => {
+    const k = patientKey(sn);
+    if(!k) return;
+    if(!byKey.has(k)) byKey.set(k, {key:k, p:patientOf(sn), runs:[]});
+    byKey.get(k).runs.push(sn);
+  });
+  if(!byKey.size){ el.hidden = true; el.innerHTML = ""; return; }
+
+  const days = new Map();          // visit date → its patients, in number order
+  [...byKey.values()].sort((a,b) => a.p.number - b.p.number).forEach(pt => {
+    const dk = localDateKey(pt.runs[0].timestamp);
+    if(!days.has(dk)) days.set(dk, []);
+    days.get(dk).push(pt);
+  });
+
+  const card = pt => {
+    const {p, runs} = pt, n = runs.length;
+    const demos = runs.filter(sn => patientOf(sn).demo).length;
+    const span = `${fmtTime(runs[0].timestamp)} – ${fmtTime(runs[n-1].timestamp)}`;
+    const on = analysisPatient === pt.key;
+    return `<button class="pt-card${on?" is-active":""}" type="button"
+        data-patient="${esc(pt.key)}" aria-pressed="${on}"
+        title="${esc(t("Patient #{n} · {dx}", {n:p.number, dx:diagName(p)}))}">
+      <span class="pt-num">#${p.number}</span>
+      <span class="pt-dx dx-${esc(p.diagnosis)}">${esc(diagShort(p))}</span>
+      <span class="pt-time">${n > 1 ? span : fmtTime(runs[0].timestamp)}</span>
+      <span class="pt-runs">${n === 1 ? t("1 session") : t("{n} sessions", {n})}${demos
+        ? ` · <span class="pt-demo">${t("Demo")}</span>` : ""}</span>
+    </button>`;
+  };
+  const dayBlock = ([dk, pts]) => {
+    const [y, m, d] = dk.split("-").map(Number);
+    const date = new Date(y, m-1, d).toLocaleDateString(i18nLocale(),
+      {weekday:"long", month:"long", day:"numeric"});
+    const order = Object.keys(DIAGNOSES);
+    const mix = [...new Set(pts.map(pt => pt.p.diagnosis))]
+      .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
+      .map(dx => `${pts.filter(pt => pt.p.diagnosis === dx).length} ${esc(diagShort({diagnosis:dx}))}`)
+      .join(" · ");
+    const dayNo = pts[0].p.day;
+    return `<div class="pt-day">
+      <div class="pt-day-head">${dayNo ? `<strong>${t("Day {n}", {n:dayNo})}</strong>` : ""}
+        <span>${date}</span><span class="pt-mix">${mix}</span></div>
+      <div class="pt-grid">${pts.map(card).join("")}</div>
+    </div>`;
+  };
+
+  el.hidden = false;
+  el.innerHTML = `<div class="pt-head">
+      <h3>${t("Patients")}</h3>
+      <span>${t("{n} patients, grouped by when their tests were saved", {n:byKey.size})}</span>
+      ${analysisPatient ? `<button class="who-act" type="button" data-patient="">${t("Show all patients")}</button>` : ""}
+    </div>
+    ${[...days.entries()].map(dayBlock).join("")}`;
+  el.querySelectorAll("[data-patient]").forEach(b => b.onclick = () => {
+    const k = b.dataset.patient;
+    analysisPatient = k && k !== analysisPatient ? k : null;
+    renderAnalysis();
+    renderVitals();
+  });
 }
 
 function renderAnalysisFilter(byTest){
@@ -1532,6 +1600,20 @@ function trendCard(key, allSessions){
   const support = `<div class="trend-support">${supporting.map(m =>
     supportTile(sessions, m)).join("")}</div>`;
 
+  // One patient picked from a group: their runs from a single visit, so no
+  // chart over time. How many sessions there were, and the list to open them.
+  if(analysisPatient){
+    const n = sessions.length, demos = calendarPts.filter(p => p.demo).length;
+    return `<div class="trend-card">${head}${modeBar}
+      <div class="trend-readout">
+        <div class="trend-now"><span class="trend-now-val">${n}</span>
+          <span class="trend-now-unit">${n === 1 ? t("session") : t("sessions")}</span></div>
+      </div>
+      ${demos ? `<div class="trend-span">${t("Includes {n} demo run", {n:demos})}</div>` : ""}
+      ${sessionCalendar(calendarPts, h, calendarKey)}
+      ${support}</div>`;
+  }
+
   if(!pts.length){
     const partial = calendarPts.some(p => p.partial);
     return `<div class="trend-card">${head}${modeBar}
@@ -1564,6 +1646,7 @@ function trendCard(key, allSessions){
       <span><i style="background:${ST.ok.dot}"></i>${t(ST.ok.word)}</span>
       <span><i style="background:${ST.warn.dot}"></i>${t(ST.warn.word)}</span>
       <span><i style="background:${ST.bad.dot}"></i>${t(ST.bad.word)}</span>
+      ${pts.some(p => p.demo) ? `<span><i class="lg-demo"></i>${t("Demo run")}</span>` : ""}
       <span class="trend-legend-note">${t("colour is the verdict the test gave that session")}</span>
     </div>`;
 
@@ -1594,7 +1677,9 @@ function cardPoints(sessions, h){
     // An eye run with Part 2 skipped: no headline, but a real report of the
     // parts that were done, so it is not listed as a failed run.
     const partial = !scoreable && isPartialEyeRun(s);
+    const patient = patientOf(s);
     return {v, iso:s.timestamp, id:s.session_id, mode:s.mode, scoreable, partial,
+            patient, pkey:patientKey(s), demo:!!(patient && patient.demo),
             label:s.metrics ? (h.neutral ? tremorFinding(s.metrics)
                                         : (s.metrics.reason || s.metrics.label)) : null,
             status:scoreable ? statusOf(s,h) : "none"};
@@ -1647,7 +1732,9 @@ function deltaChip(cur, prev, lowerBetter){
 
 /* ── SVG line chart with status bands ─────────────────────────────── */
 function trendSvg(pts, h, pooled){
-  const W=640, H=210, padL=46, padR=18, padT=18, padB=36;
+  // A group's runs tagged by patient get a row of patient numbers under the plot.
+  const tagged = pooled && pts.some(p => p.patient);
+  const W=640, H=tagged?226:210, padL=46, padR=18, padT=18, padB=tagged?52:36;
   const iw=W-padL-padR, ih=H-padT-padB;
   let vals = pts.map(p=>p.v);
   let lo=Math.min(...vals), hi=Math.max(...vals);
@@ -1685,6 +1772,31 @@ function trendSvg(pts, h, pooled){
     }
   }
 
+  // Each patient's runs as a column: a faint stripe behind every other one,
+  // the patient number underneath, and a dashed rule where a visit day ends.
+  const half = pts.length>1 ? iw/(pts.length-1)/2 : iw/2;
+  const sameDay = (a, b) => localDateKey(pts[a].iso) === localDateKey(pts[b].iso);
+  const colX = (i, j) => [Math.max(padL, x(i)-half), Math.min(padL+iw, x(j)+half)];
+  if(tagged){
+    let stripe = 0;
+    for(let i=0; i<pts.length;){
+      let j = i;
+      while(j+1<pts.length && pts[j+1].pkey===pts[i].pkey && sameDay(j+1, i)) j++;
+      const p = pts[i].patient, [x0, x1] = colX(i, j);
+      if(p){
+        if(stripe++ % 2 === 0)
+          svg += `<rect x="${x0.toFixed(1)}" y="${padT}" width="${(x1-x0).toFixed(1)}" height="${ih}" fill="#FFFFFF" opacity=".04"/>`;
+        if(x1-x0 >= 16)
+          svg += `<text x="${((x(i)+x(j))/2).toFixed(1)}" y="${padT+ih+15}" text-anchor="middle" font-size="10.5" font-weight="600" fill="${INK_MUTED}" font-family="'JetBrains Mono',monospace">#${p.number}</text>`;
+      }
+      if(j+1<pts.length && !sameDay(j, j+1)){
+        const xd = ((x(j)+x(j+1))/2).toFixed(1);
+        svg += `<line x1="${xd}" y1="${padT}" x2="${xd}" y2="${padT+ih}" stroke="${INK_DIM}" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/>`;
+      }
+      i = j+1;
+    }
+  }
+
   // Horizontal gridlines + y tick labels, one per step (usually 4).
   const ticks = Math.round((hi-lo)/step);
   for(let i=0;i<=ticks;i++){
@@ -1707,17 +1819,22 @@ function trendSvg(pts, h, pooled){
   // Dots (status-coloured), each a button that opens that session's report.
   // The generous transparent circle underneath is the real hit target - a 4.5px
   // dot is not one. `fill="transparent"`, not "none": "none" takes no pointer.
+  // A demo run is drawn hollow: it is the examiner's, not the patient's.
   pts.forEach((pt,i)=>{
     const last = i===pts.length-1, r = last?6:4.5;
-    const title = `${fmtDateTime(pt.iso)} — ${fmtNum(pt.v)}${h.unit} (${t(ST[pt.status].word)})`;
+    const who = pt.patient ? ` — ${t("Patient #{n} · {dx}", {n:pt.patient.number, dx:diagShort(pt.patient)})}`
+      + (pt.demo ? ` · ${t("Demo run")}` : "") : "";
+    const title = `${fmtDateTime(pt.iso)}${who} — ${fmtNum(pt.v)}${h.unit} (${t(ST[pt.status].word)})`;
     svg += `<g class="pt" ${pt.id?`data-sid="${pt.id}" tabindex="0" role="button"`:""}`
       + ` aria-label="${t("Open the report for {when}",{when:title})}">`
       + `<title>${title} — ${t("click for the full report")}</title>`
       + `<circle cx="${x(i)}" cy="${y(pt.v)}" r="15" fill="transparent"/>`
       + `<circle class="pt-ring" cx="${x(i)}" cy="${y(pt.v)}" r="${r+4}" fill="${ST[pt.status].dot}"`
       + ` opacity="${last?".22":"0"}"/>`
-      + `<circle cx="${x(i)}" cy="${y(pt.v)}" r="${r}" fill="${ST[pt.status].dot}"`
-      + ` stroke="#0B1020" stroke-width="${last?2.5:2}"/></g>`;
+      + (pt.demo
+        ? `<circle cx="${x(i)}" cy="${y(pt.v)}" r="${r}" fill="#0B1020" stroke="${ST[pt.status].dot}" stroke-width="2"/></g>`
+        : `<circle cx="${x(i)}" cy="${y(pt.v)}" r="${r}" fill="${ST[pt.status].dot}"`
+          + ` stroke="#0B1020" stroke-width="${last?2.5:2}"/></g>`);
   });
 
   // Direct label on the latest value.
@@ -1727,10 +1844,22 @@ function trendSvg(pts, h, pooled){
     font-size="12.5" font-weight="700" fill="#E2E8F0" stroke="#0B1020" stroke-width="4"
     stroke-linejoin="round" paint-order="stroke" font-family="'JetBrains Mono',monospace">${fmtNum(latestVal(pts))}${h.unit}</text>`;
 
-  // X-axis end labels.
-  svg += `<text x="${padL}" y="${H-12}" text-anchor="start" font-size="11" fill="${INK_MUTED}">${fmtDate(pts[0].iso)}</text>`;
-  if(pts.length>1)
-    svg += `<text x="${padL+iw}" y="${H-12}" text-anchor="end" font-size="11" fill="${INK_MUTED}">${fmtDate(pts[pts.length-1].iso)}</text>`;
+  // X-axis end labels. Patient columns put a date under each visit day
+  // instead, where there is room for one.
+  if(tagged){
+    for(let i=0; i<pts.length;){
+      let j = i;
+      while(j+1<pts.length && sameDay(j+1, i)) j++;
+      const [x0, x1] = colX(i, j);
+      if(x1-x0 >= 48)
+        svg += `<text x="${((x0+x1)/2).toFixed(1)}" y="${H-12}" text-anchor="middle" font-size="11" fill="${INK_MUTED}">${fmtDate(pts[i].iso)}</text>`;
+      i = j+1;
+    }
+  }else{
+    svg += `<text x="${padL}" y="${H-12}" text-anchor="start" font-size="11" fill="${INK_MUTED}">${fmtDate(pts[0].iso)}</text>`;
+    if(pts.length>1)
+      svg += `<text x="${padL+iw}" y="${H-12}" text-anchor="end" font-size="11" fill="${INK_MUTED}">${fmtDate(pts[pts.length-1].iso)}</text>`;
+  }
 
   return svg + `</svg>`;
 }
@@ -1849,10 +1978,14 @@ function sessionCalendar(pts, h, key){
     ? new Date(selected[0].iso).toLocaleDateString(i18nLocale(),
         {weekday:"long", month:"long", day:"numeric"}) : "";
   const rows = selected.map(p=>`<button class="cal-session vs-${p.status}" data-sid="${p.id}"
-      title="${esc(p.label ? t(p.label) : t(ST[p.status].word))}">
-      <span class="cal-time">${fmtTime(p.iso)}</span>
+      title="${esc((p.patient ? t("Patient #{n} · {dx}", {n:p.patient.number, dx:diagName(p.patient)})
+        + (p.demo ? ` · ${t("Demo run")}` : "") + " — " : "")
+        + (p.label ? t(p.label) : t(ST[p.status].word)))}">
+      <span class="cal-time">${fmtTime(p.iso)}${p.patient
+        ? `<span class="cal-pt">#${p.patient.number} · ${esc(diagShort(p.patient))}</span>` : ""}</span>
       <span class="cal-value${p.scoreable?"":" cal-unscored"}">${p.scoreable
-        ? `${fmtNum(p.v)}<small>${h.unit}</small>` : "—"}</span>
+        ? `${fmtNum(p.v)}<small>${h.unit}</small>` : "—"}${p.demo
+        ? `<span class="cal-demo">${t("Demo")}</span>` : ""}</span>
       <span class="cal-verdict"><i></i>${p.scoreable?t(ST[p.status].word)
         :p.partial?t("Partial run"):t("Not scoreable")}</span>
       <span class="cal-go">${I.arrowRight}</span>

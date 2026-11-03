@@ -52,26 +52,6 @@ scene.add(glowLight);
 const handGroup = new THREE.Group();
 scene.add(handGroup);
 
-/* ── Scan-line overlay ──────────────────────────────────────────── */
-const scanMat = new THREE.ShaderMaterial({
-  transparent: true, depthTest: false, depthWrite: false,
-  uniforms: { uTime: {value:0}, uAlpha: {value:0} },
-  vertexShader: `varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position,1.0); }`,
-  fragmentShader: `varying vec2 vUv;
-    uniform float uTime, uAlpha;
-    void main(){
-      float line = step(0.5, fract(vUv.y*120.0 + uTime*0.8));
-      float edge = smoothstep(0.0,0.15,vUv.y) * smoothstep(1.0,0.85,vUv.y);
-      gl_FragColor = vec4(1.0,0.682,0.510, line*0.12*uAlpha*edge);
-    }`,
-});
-const scanMesh = new THREE.Mesh(new THREE.PlaneGeometry(2,2), scanMat);
-scanMesh.renderOrder = 999; scanMesh.frustumCulled = false;
-const scanScene = new THREE.Scene();
-const scanCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
-scanScene.add(scanMesh);
-
 /* ── Morph state ────────────────────────────────────────────────── */
 let morph = 0, morphTarget = 0, cycleTimer = 0;
 const MORPH_DUR = 2.0, CYCLE = 8.0;
@@ -259,11 +239,7 @@ function animate(){
   glowLight.intensity = t * 1.8;
   ambientLight.intensity = 0.6 - t * 0.25;
 
-  /* Scan lines */
-  scanMat.uniforms.uTime.value = now;
-  scanMat.uniforms.uAlpha.value = t;
-
-  /* Label. `t` is the local scan alpha in this scope, so the translator is
+  /* Label. `t` is the local morph alpha in this scope, so the translator is
      reached through window (i18n.js is a classic script; this file is a module). */
   if(label){
     const tr = s => (window.t ? window.t(s) : s);
@@ -281,8 +257,5 @@ function animate(){
   }
 
   renderer.render(scene, camera);
-  renderer.autoClear = false;
-  renderer.render(scanScene, scanCam);
-  renderer.autoClear = true;
 }
 animate();

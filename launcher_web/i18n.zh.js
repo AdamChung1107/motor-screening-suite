@@ -124,6 +124,7 @@ window.ZH = {
 /* ── dashboard ──────────────────────────────────────────────────────── */
 "home.h1": `以相機進行的<br><span class="grad">認知篩檢</span>`,
 "home.sub": `由 Adam Chung 製作。`,
+"home.status": `狀態`,
 "home.sec.vitals": `你的測量結果`,
 "home.vitals.link": `完整趨勢 &#8594;`,
 "home.sec.tools": `篩檢工具`,
@@ -630,6 +631,7 @@ window.ZH = {
 "Stop": `停止`,
 "Details": `詳細資訊`,
 "Running...": `執行中…`,
+"Work in progress": `開發中`,
 "Running — check the camera window": `執行中 — 請查看相機視窗`,
 "Measuring results… {pct}%": `正在分析結果… {pct}%`,
 "Couldn't measure the results": `無法分析結果`,
@@ -736,6 +738,21 @@ window.ZH = {
 "Group: {name}": `群組：{name}`,
 "Different people. Not one person's trend.": `不同的人，並非單一個人的趨勢。`,
 
+/* a group's patients on the Analysis page (record.patient) */
+"Patients": `病人`,
+"{n} patients, grouped by when their tests were saved": `{n} 位病人，依測驗儲存時間分組`,
+"Show all patients": `顯示所有病人`,
+"Day {n}": `第 {n} 天`,
+"Patient #{n} · {dx}": `病人 #{n} · {dx}`,
+"Parkinson's disease": `帕金森氏症`,
+"Essential tremor": `原發性顫抖症`,
+"Parkinsonian tremor": `帕金森氏顫抖`,
+"Demo": `示範`,
+"Demo run": `示範操作`,
+"session": `次紀錄`,
+"sessions": `次紀錄`,
+"Includes {n} demo run": `含 {n} 次示範操作`,
+
 /* the person filter on the Analysis page and the readings strip */
 "All people": `所有人`,
 "Unassigned": `未指定`,
@@ -763,6 +780,7 @@ window.ZH = {
 "Face model": `臉部模型`,
 "Ready": `就緒`,
 "Missing": `缺少`,
+"Unknown": `未知`,
 "OK": `正常`,
 "Done": `完成`,
 "Failed": `失敗`,
