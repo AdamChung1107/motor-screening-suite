@@ -70,6 +70,68 @@ service cloud.firestore {
                     && resource.data.helper_uid == request.auth.uid;
     }
 
+    // ── Adam's portfolio site ───────────────────────────────────────────
+    // A second Hosting site in this project (adam-chung-engineering-portfolio,
+    // built from 桌面/Engineering Profolio) has a live editor that saves its
+    // edits and pictures here. Anyone may read one document by name, since
+    // they are what the public site shows. Only Adam, signed in with Google,
+    // may write. The other side is that site's src/live.js and
+    // src/editor/cloud.js. It shares nothing with the relay above.
+
+    function isPortfolioOwner() {
+      return signedIn()
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.token.email == 'adamchung444@gmail.com'
+          && request.auth.token.email_verified == true;
+    }
+
+    match /portfolio/{docId} {
+      allow get: if true;
+      allow create, update: if isPortfolioOwner()
+                            && request.resource.data.keys().hasOnly(['json', 'updatedAt'])
+                            && request.resource.data.json is string;
+      allow delete: if isPortfolioOwner();
+    }
+
+    // One uploaded picture each, as a data: URL under Firestore's 1 MB limit.
+    match /portfolio_images/{imageId} {
+      allow get: if true;
+      allow create, update: if isPortfolioOwner()
+                            && request.resource.data.keys().hasOnly(['data', 'width', 'height', 'createdAt'])
+                            && request.resource.data.data is string
+                            && request.resource.data.data.size() < 1000000;
+      allow delete: if isPortfolioOwner();
+    }
+
+    // One document per page a visitor opens on the portfolio site (its
+    // src/visits.js), so Adam can see whether a school has looked. Anyone may
+    // add one, in this shape only, with short text fields and no IP address.
+    // Nobody may change or delete one, and only Adam may read them; he does
+    // so with that site's `npm run visits`, which uses his Firebase CLI login.
+    function shortText(data, key) {
+      return !(key in data) || (data[key] is string && data[key].size() <= 200);
+    }
+
+    match /portfolio_visits/{visitId} {
+      allow create: if request.resource.data.keys().hasOnly(
+                         ['page', 'referrer', 'link', 'session', 'city', 'region', 'country',
+                          'network', 'domain', 'timezone', 'device', 'language'])
+                    && request.resource.data.page is string
+                    && shortText(request.resource.data, 'page')
+                    && shortText(request.resource.data, 'referrer')
+                    && shortText(request.resource.data, 'link')
+                    && shortText(request.resource.data, 'session')
+                    && shortText(request.resource.data, 'city')
+                    && shortText(request.resource.data, 'region')
+                    && shortText(request.resource.data, 'country')
+                    && shortText(request.resource.data, 'network')
+                    && shortText(request.resource.data, 'domain')
+                    && shortText(request.resource.data, 'timezone')
+                    && shortText(request.resource.data, 'device')
+                    && shortText(request.resource.data, 'language');
+      allow get, list: if isPortfolioOwner();
+    }
+
     // Nothing else in this project is reachable from a browser.
     match /{document=**} {
       allow read, write: if false;
