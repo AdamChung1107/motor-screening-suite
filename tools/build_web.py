@@ -161,9 +161,12 @@ def main() -> None:
     # assets/fonts/ is the bundled CJK subset for the OpenCV overlays and
     # assets/screenshots/ is source material for the WebP copies the pages
     # actually use (launcher_web/img/); the site draws with neither, so both
-    # stay out of the published build.
+    # stay out of the published build. videos/bug.mp4 is a local screen
+    # recording of a bug, not a card clip, and is git-ignored for the same
+    # reason.
     shutil.copytree(ASSETS_SRC, OUT / "assets", dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("fonts", "screenshots", "*.md"))
+                    ignore=shutil.ignore_patterns("fonts", "screenshots", "*.md",
+                                                  "bug.mp4"))
     shutil.copy2(SHIM_SRC, OUT / "static-api.js")
 
     # Participant page -> /s/. Its tests/ and package.json are development

@@ -53,3 +53,6 @@ participant/firebase-config.js
 
 # Screen recordings (R in a test) - faces on camera, never published
 recordings/
+# A local screen recording of a bug, kept beside the card clips but never
+# published (tools/build_web.py leaves it out of the site too)
+assets/videos/bug.mp4
