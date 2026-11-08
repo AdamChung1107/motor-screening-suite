@@ -4,11 +4,11 @@
  * Implements the analog front end and serial protocol specified in
  * docs/glove/GLOVE_FIRMWARE_PLAN.md (sections 3 and 4).
  *
- * Current hardware (2026-09-26, the last direct-wired prototype before the
- * perfboard, the A401 palm pads and the mux): two FSR402 pads - p0 on A0
- * (thumb tip), p1 on A1 (index tip) - and four flex strips, thumb -> ring:
- * f0 on A2, f1 on A3, f2 on A6, f3 on A7. A4/A5 are left unconnected. Every
- * sensor is soldered, and each is its own divider against the 3V3 rail:
+ * Current hardware (2026-11-08, first build with the mux): three FSR402 pads
+ * wired directly - p0 on A1 (thumb tip), p1 on A2 (index tip), p2 on A3
+ * (middle tip) - and four flex strips through a CD74HC4067 on C0-C3, thumb ->
+ * ring (f0..f3), read on A0. Each sensor is its own divider against the 3V3
+ * rail:
  *     3V3 --- SENSOR --- Ax --- rFixed --- GND
  * The pads use 10k; the strips use 47k. That is why rFixed is per
  * channel in CHANNELS[] rather than one global: a divider is most sensitive
@@ -153,7 +153,7 @@ static const char *IMU_COLS[6] = { "ax", "ay", "az", "gx", "gy", "gz" };
 
 /* ---------- configuration ------------------------------------------------ */
 
-#define FW_VERSION      "0.8.0"
+#define FW_VERSION      "0.9.0"
 /*
  * Frame layout is unchanged from proto 1 by the move to 12-bit: only the value
  * scale moved, and the banner's adc_bits already tells the host about that. So
@@ -230,9 +230,11 @@ struct AnalogChannel {
  * flex strip. Mislabel a channel here and the dev page will print confident
  * newtons for a bending finger.
  *
- * PIN LAYOUT (fw 0.8.0): force pads first, then flex strips, each group in
- * finger order thumb -> ring, skipping A4/A5. The old even-pins-for-force
- * convention was dropped with this build; the mux replaces direct pins next.
+ * PIN LAYOUT (fw 0.9.0): the three FSR pads wired directly to A1-A3, thumb ->
+ * middle, and the four flex strips through the CD74HC4067 on C0-C3, thumb ->
+ * ring, read on the mux SIG pin (A0) with the select lines on D2-D5. The mux
+ * is powered from 3V3 with EN tied to GND. Each strip keeps its own 47k to GND
+ * on its channel side, so the divider is the same as when it was direct.
  * Nothing enforces a layout either way, because
  * every channel names its own pin in the table below and the host reads the
  * layout from the boot banner - the convention is a habit for wiring, not a
@@ -257,13 +259,17 @@ struct AnalogChannel {
  * flex strip is the geometric middle of its own ~10k-110k sweep, which is
  * where the divider gives the most output swing per degree of bend.
  */
+/* CD74HC4067 common (SIG) pin. Every muxed channel reads through it. */
+#define MUX_SIG A0
+
 static const AnalogChannel CHANNELS[] = {
-  { "p0", "fsr",  A0, -1, 10000 },   /* thumb tip  */
-  { "p1", "fsr",  A1, -1, 10000 },   /* index tip  */
-  { "f0", "flex", A2, -1, 47000 },   /* thumb      */
-  { "f1", "flex", A3, -1, 47000 },   /* index      */
-  { "f2", "flex", A6, -1, 47000 },   /* middle     */
-  { "f3", "flex", A7, -1, 47000 },   /* ring       */
+  { "p0", "fsr",  A1,      -1, 10000 },   /* thumb tip  */
+  { "p1", "fsr",  A2,      -1, 10000 },   /* index tip  */
+  { "p2", "fsr",  A3,      -1, 10000 },   /* middle tip */
+  { "f0", "flex", MUX_SIG,  0, 47000 },   /* thumb  - mux C0 */
+  { "f1", "flex", MUX_SIG,  1, 47000 },   /* index  - mux C1 */
+  { "f2", "flex", MUX_SIG,  2, 47000 },   /* middle - mux C2 */
+  { "f3", "flex", MUX_SIG,  3, 47000 },   /* ring   - mux C3 */
 };
 static const uint8_t N_CHANNELS = sizeof(CHANNELS) / sizeof(CHANNELS[0]);
 
