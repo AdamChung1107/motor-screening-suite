@@ -5,6 +5,7 @@ Run this once after cloning the repo:
 
     python install.py            # or double-click setup.bat on Windows
     python install.py --speech-ml   # also the optional speech phoneme model
+    python install.py --twin        # also the optional hand twin (MuJoCo + MyoHand)
 
 It is stdlib-only (no third-party imports) so it can bootstrap before any
 dependencies exist. It will:
@@ -17,7 +18,11 @@ dependencies exist. It will:
      pre-download the speech test's phoneme model (~1.2 GB in the Hugging Face
      cache, outside the repo). Optional — the speech test runs without it and
      simply skips the sequencing measure (core/speech/phonemes.py).
-  6. Print how to launch the suite.
+  6. With --twin only: install MuJoCo, MyoSim's MyoHand model and scipy for
+     the musculoskeletal hand twin (core/twin/, docs/glove/DIGITAL_TWIN_PLAN.md).
+     About 125 MB installed (plus scipy if missing). Optional: nothing else
+     imports it.
+  7. Print how to launch the suite.
 """
 
 import os
@@ -56,6 +61,10 @@ IS_WINDOWS = os.name == "nt"
 # instead of the multi-GB CUDA build nobody here needs.
 TORCH_INDEX = "https://download.pytorch.org/whl/cpu"
 SPEECH_ML_PACKAGES = ("transformers>=4.40", "huggingface_hub>=0.23")
+
+# Optional hand twin. Keep in step with core/twin/__init__.py REQUIREMENTS
+# (test_twin.py checks they match). myo-sim pins MuJoCo itself.
+TWIN_PACKAGES = ("myo-sim>=0.2.4,<0.3", "scipy>=1.10")
 
 
 def log(msg):
@@ -146,6 +155,23 @@ def install_speech_ml():
             "to try again.")
 
 
+def install_twin():
+    """MuJoCo + MyoHand + scipy, then load the model once to prove it works."""
+    py = venv_python()
+    log("Installing the hand twin (MuJoCo + MyoHand + scipy) ...")
+    subprocess.check_call([py, "-m", "pip", "install", *TWIN_PACKAGES])
+    code = ("import sys, warnings; sys.path.insert(0, '.'); "
+            "warnings.simplefilter('ignore'); "
+            "from core.twin.model import load; h = load(); "
+            "print(len(h.joints), 'joints,', len(h.muscles), 'muscles')")
+    try:
+        subprocess.check_call([py, "-c", code], cwd=REPO_ROOT)
+        log("Hand twin ready. Try: .venv/Scripts/python tools/twin_run.py --demo")
+    except subprocess.CalledProcessError:
+        log("ERROR: the hand model did not load. Everything else still works; "
+            "re-run 'python install.py --twin' to try again.")
+
+
 def print_next_steps():
     py = venv_python()
     # Show a repo-relative, shell-friendly path for the interpreter.
@@ -173,6 +199,8 @@ def main():
     else:
         log("Optional: 'python install.py --speech-ml' adds the speech test's "
             "phoneme model (~1.4 GB download).")
+    if "--twin" in sys.argv[1:]:
+        install_twin()
     print_next_steps()
 
 
