@@ -574,18 +574,14 @@ window.ZH = {
 "dev.intro": `手套類比通道的建置工具與即時波形。板子會透過 USB 序列埠串流原始 ADC 資料；
             本頁用來檢查工具鏈、燒錄韌體，並繪出感測器與板載 IMU 實際的狀況。規格：
             <code>docs/glove/GLOVE_FIRMWARE_PLAN.md</code>。`,
-"dev.sec.toolchain": `工具鏈`,
-"dev.sec.conn": `連線`,
+"dev.sec.glove": `手套`,
+"dev.line.conn": `連線`,
+"dev.line.board": `板子`,
+"dev.line.tool": `工具鏈`,
 "dev.sec.signal": `即時訊號`,
 "dev.scope.aria": `即時感測波形`,
 "dev.scope.empty": `未連線 &#8212; 沒有訊號。`,
 "dev.sec.map": `手套感測地圖`,
-"dev.map.legend": `填色 = 目前 &#183; 外環 = 自 Z 以來峰值 &#183; 淡色 = 未安裝`,
-"dev.map.note": `每個通道畫在它在手上的位置。版面是已定案的十一通道組合 &#8212; 四根手指背面的 flex、
-        四個指尖的 FSR402、三個手掌墊的 FlexiForce A401 &#8212; 只有板子 banner 宣告的通道會亮起。
-        Flex 依讀數在已記錄範圍中的位置彎曲手指，這是示意，不是關節角度。按「校正動作」後，
-        整隻手會依 IMU 跟著你的手轉動；拖曳可轉動視角。
-        版面：<code>docs/glove/GLOVE_EXPANSION_PLAN.md</code> &#167;4。`,
 "dev.map.aria": `手套感測器的 3D 地圖`,
 "dev.sec.motion": `動作 &#8212; 板載 IMU`,
 "dev.motion.legend": `加速度計 + 陀螺儀，100 Hz`,
@@ -593,8 +589,6 @@ window.ZH = {
         IMU 裝在手上，說明<em>手怎麼動</em>，速率 100 Hz，遮蔽或離開畫面都仍然有效
         &#8212; 這正是 4&#8211;12 Hz 震顫頻帶需要的。
         規格：<code>docs/glove/GLOVE_FIRMWARE_PLAN.md</code> &#167;5d。`,
-"dev.sec.health": `串流健康度`,
-"dev.sec.cmds": `板子指令`,
 "dev.sec.console": `序列主控台`,
 "dev.disclaimer": `同一時間只有一個程式能占用 COM 埠 &#8212; 連線前請先關閉 Arduino
         序列監控視窗與 <code>press_test.ps1</code>。上傳韌體時會自動釋放本頁的連線。
@@ -910,35 +904,51 @@ window.ZH = {
 /* ══ strings rendered from dev.js (sensor glove) ═══════════════════════ */
 
 /* toolchain + board commands */
-"Run Setup": `執行安裝設定`,
+"Run setup": `執行安裝設定`,
 "Install pyserial": `安裝 pyserial`,
+"Install bleak": `安裝 bleak`,
+"Install {name}": `安裝 {name}`,
+"Scan Bluetooth": `掃描藍牙`,
+"Scanning…": `掃描中…`,
+"Bluetooth": `藍牙`,
+"Install bleak first, under Toolchain below.": `請先在下方「工具鏈」安裝 bleak。`,
 "IMU lib: Rev2 (BMI270)": `IMU 函式庫：Rev2（BMI270）`,
 "IMU lib: original (LSM9DS1)": `IMU 函式庫：初代（LSM9DS1）`,
-"Compile Firmware": `編譯韌體`,
-"Upload Firmware": `上傳韌體`,
-"Run Glove Tests": `執行手套測試`,
-"Re-read Banner": `重讀識別資訊`,
-"Start Stream": `開始串流`,
-"Stop Stream": `停止串流`,
-"Zero &amp; Reset Span": `歸零並重設範圍`,
-"Toggle Diagnostics": `切換診斷輸出`,
-"Start Recording": `開始錄製`,
-"Stop Recording": `停止錄製`,
+"Compile firmware": `編譯韌體`,
+"Upload firmware": `上傳韌體`,
+"Run tests": `執行測試`,
+"Re-read banner": `重讀識別資訊`,
+"Start stream": `開始串流`,
+"Stop stream": `停止串流`,
+"Zero span": `歸零範圍`,
+"Diagnostics": `診斷輸出`,
+"Record": `錄製`,
+"Stop recording": `停止錄製`,
 "Pause": `暫停`,
 "Resume": `繼續`,
 "Clear": `清除`,
 "Auto-scroll": `自動捲動`,
+"{n} lines": `{n} 行`,
 
-/* connection */
+/* connection: the glove card's state line */
 "Port": `連接埠`,
 "Refresh": `重新整理`,
 "Connect": `連線`,
 "Disconnect": `中斷連線`,
-"Serial": `序列埠`,
-"connected": `已連線`,
+"Connected": `已連線`,
 "Disconnected": `未連線`,
+"not real data": `不是真實資料`,
+"Board detected": `已偵測到板子`,
+"Board not plugged in": `板子未插上`,
+"Board unknown, needs pyserial": `無法判斷板子，需要 pyserial`,
+"Protocol {p} unsupported": `不支援通訊協定 {p}`,
+"Last reset: {why}": `上次重設：{why}`,
+"Dropped": `掉格`,
+"Uptime": `連線時間`,
+"rows": `列`,
+"No banner yet": `尚未收到識別資訊`,
 "No serial ports found": `找不到序列埠`,
-"Install pyserial first — use the button above.": `請先安裝 pyserial — 使用上方的按鈕。`,
+"Install pyserial first, under Toolchain below.": `請先在下方「工具鏈」安裝 pyserial。`,
 "Ports refreshed": `連接埠已更新`,
 
 /* scope toolbar */
@@ -960,39 +970,39 @@ window.ZH = {
 "Auto": `自動`,
 "Median of {n} samples. Display only — recordings stay raw.":
   `{n} 筆樣本的中位數。只影響顯示 — 錄製的資料仍是原始值。`,
-"Smooth (display only)": `平滑（僅顯示）`,
+"Smooth": `平滑`,
 "Scope shows at most {n} channels — the tiles below cover the rest.":
   `波形最多顯示 {n} 個通道 — 其餘的請看下方卡片。`,
 
-/* toolchain pills */
+/* toolchain: summary, fix rows and the Details checklist */
+"{n} to fix": `{n} 項待修正`,
+"{n} to check": `{n} 項待確認`,
 "Board": `板子`,
-"Unknown — needs pyserial": `無法判斷 — 需要 pyserial`,
-"Detected": `已偵測到`,
-"Not plugged in": `未插上`,
 "Interpreter": `直譯器`,
 "missing {names}": `缺少 {names}`,
 "Installed": `已安裝`,
 "Found": `已找到`,
+"Not found": `找不到`,
+"Missing, needed for Bluetooth": `缺少，藍牙連線需要它`,
 "mbed_nano core": `mbed_nano 核心`,
 "Sketch": `草稿碼`,
 "Sketch selection unreadable": `無法讀取草稿碼的選擇`,
 "Sketch builds without motion": `草稿碼建置時不含動作感測`,
 "{imu} selected, not installed": `已選 {imu}，但尚未安裝`,
-" and ": `與`,
+"{imu} on A4/A5, no library needed": `{imu}（A4/A5），不需函式庫`,
 ", which is not the project's <code>.venv</code>": `，而它不是專案的 <code>.venv</code>`,
-"<strong>glove.ino selects <code>{imu}</code>, which is not installed.</strong> Compiling will fail on the missing header. Press <em>{btn}</em> below — or, if that is the wrong chip for this board, change the <code>#define GLOVE_IMU_…</code> line at the top of <code>firmware/glove/glove.ino</code> to match the silkscreen.":
-  `<strong>glove.ino 選擇了 <code>{imu}</code>，但它尚未安裝。</strong>編譯會因為找不到標頭檔而失敗。
-   請按下方的<em>{btn}</em> — 若這顆晶片不是這塊板子上的，請改
-   <code>firmware/glove/glove.ino</code> 開頭的 <code>#define GLOVE_IMU_…</code>，
-   讓它符合板子絲印上的型號。`,
-"<strong>{names} {isare} not importable by this hub.</strong> It is running <code>{py}</code>{venv}. Either restart it with <code>run_hub.bat</code>, or use the install button below — that installs into the interpreter this hub is actually using.":
-  `<strong>這個控制中心無法匯入 {names}。</strong>它執行的是 <code>{py}</code>{venv}。
-   請改用 <code>run_hub.bat</code> 重新啟動，或按下方的安裝按鈕 —
-   那會安裝到控制中心實際使用的直譯器。`,
+"This hub runs <code>{py}</code>{venv}. Restart it with <code>run_hub.bat</code>, or install here, into the interpreter it is actually using.":
+  `這個控制中心執行的是 <code>{py}</code>{venv}。請用 <code>run_hub.bat</code> 重新啟動，
+   或在這裡安裝，裝進它實際使用的直譯器。`,
+"Expected in <code>%LOCALAPPDATA%\\Programs\\arduino-cli\\</code> or on PATH.":
+  `應位於 <code>%LOCALAPPDATA%\\Programs\\arduino-cli\\</code> 或 PATH 中。`,
+"Install it with <code>arduino-cli core install arduino:mbed_nano</code>.":
+  `請用 <code>arduino-cli core install arduino:mbed_nano</code> 安裝。`,
+"Compiling will fail on the missing header. If this is the wrong chip for this board, change the <code>#define GLOVE_IMU_…</code> line at the top of <code>firmware/glove/glove.ino</code>.":
+  `編譯會因為找不到標頭檔而失敗。若這顆晶片不是這塊板子上的，請改
+   <code>firmware/glove/glove.ino</code> 開頭的 <code>#define GLOVE_IMU_…</code>。`,
 
-/* banner */
-"No banner yet — connect and the board announces its firmware, rate and column layout.":
-  `尚未收到識別資訊 — 連線後板子會回報韌體、取樣率與欄位配置。`,
+/* banner (Board info) */
 "Firmware": `韌體`,
 "Protocol": `通訊協定`,
 " (supported)": `（支援）`,
@@ -1004,6 +1014,21 @@ window.ZH = {
 
 /* channel tiles */
 "No channels yet.": `尚無通道。`,
+"Force": `力量`,
+"Palm force": `手掌力量`,
+"A401 — no force calibration yet; conductance rises linearly with force": `A401 — 尚未做力量校正；電導隨力量線性上升`,
+"Bend": `彎曲`,
+"Acceleration": `加速度`,
+"Rotation": `旋轉`,
+"light": `過輕`,
+"in range": `範圍內`,
+"over range": `超出範圍`,
+"provisional": `暫定`,
+"re-record": `需重錄`,
+"calibrated": `已校正`,
+"uncalibrated": `未校正`,
+"simulated": `模擬`,
+"raw only": `僅原始值`,
 "fsr": `力量感測`,
 "flex": `彎曲感測`,
 "accel": `加速度`,
@@ -1025,13 +1050,52 @@ window.ZH = {
 "observed span — not calibrated": `觀測到的範圍 — 未校正`,
 "unknown sensor — raw only": `未知的感測器 — 只顯示原始值`,
 "onboard {imu}": `板載 {imu}`,
+"{imu} on A4/A5": `{imu}（A4/A5）`,
+"simulated IMU": `模擬 IMU`,
+
+/* simulated glove (dev.js devRenderSim) */
+"Simulate glove": `模擬手套`,
+"Simulated glove": `模擬手套`,
+"No data — reopening the port": `沒有資料 — 正在重新開啟連接埠`,
+"Board not responding — press its reset button or replug it": `板子沒有回應 — 請按它的重置鍵，或重新插拔`,
+"Port lost — reconnecting": `連接埠中斷 — 正在重新連線`,
+"Last error": `上次錯誤`,
+"Last reset": `上次重置`,
+"reset button": `重置鍵`,
+"power-on or brown-out": `開機或電壓不足`,
+"software reset (e.g. after an upload)": `軟體重置（例如燒錄之後）`,
+"CPU lockup (crash)": `CPU 鎖死（當機）`,
+"watchdog": `看門狗`,
+"wake from System OFF": `從 System OFF 喚醒`,
+"USB power": `USB 供電`,
+"Stop simulation": `停止模擬`,
+"Keys": `按鍵`,
+"ready": `就緒`,
+"paused — the cursor is in a field": `已暫停 — 游標在欄位中`,
+"Bend a finger": `彎曲手指`,
+"Press a fingertip": `按壓指尖`,
+"Move the hand": `移動手部`,
+"fist": `握拳`,
+"press hard": `用力按`,
+"fingers up": `手指朝上`,
+"fingers down": `手指朝下`,
+"roll left": `向左翻`,
+"roll right": `向右翻`,
+"turn left": `向左轉`,
+"turn right": `向右轉`,
+"level": `放平`,
+"tremor on/off": `震顫開／關`,
+"Frequency": `頻率`,
+"Size": `幅度`,
+"{n} Hz": `{n} Hz`,
+"{n} mg": `{n} mg`,
 "rotation rate": `旋轉速率`,
 "proper acceleration": `固有加速度`,
 "peak {peak}  ·  adc span {lo}–{hi} of {max}": `峰值 {peak}  ·  ADC 範圍 {lo}–{hi}／共 {max}`,
 
 /* motion card */
-"Connect the board to read its onboard accelerometer and gyroscope.":
-  `連線板子即可讀取板載的加速度計與陀螺儀。`,
+"Connect the board to read its accelerometer and gyroscope.":
+  `連線板子即可讀取加速度計與陀螺儀。`,
 "moving": `移動中`,
 "Tilt pitch / roll — board axes": `傾角 俯仰／翻滾 — 板子座標軸`,
 "Tilt — hold still, this needs gravity alone": `傾角 — 請保持不動，這需要只剩重力的狀態`,
@@ -1046,11 +1110,6 @@ window.ZH = {
 "{s} s window at {fs} Hz · {imu}": `{s} 秒視窗，{fs} Hz · {imu}`,
 
 /* glove map (glove3d.js) */
-"Fingertips — FSR402": `指尖 — FSR402`,
-"Palm — FlexiForce A401": `手掌 — FlexiForce A401`,
-"Fingers — flex strip": `手指 — 彎曲感測條`,
-"Back of hand — IMU": `手背 — IMU`,
-"Not on the map": `地圖上沒有位置`,
 "thumb tip": `拇指指尖`,
 "index tip": `食指指尖`,
 "middle tip": `中指指尖`,
@@ -1062,15 +1121,8 @@ window.ZH = {
 "index": `食指`,
 "middle": `中指`,
 "ring": `無名指`,
-"back of hand": `手背`,
-"offline": `離線`,
-"not fitted": `未安裝`,
+"pinky": `小指`,
 "live": `即時`,
-"waiting for data": `等待資料`,
-"not reporting": `沒有回報`,
-"banner says {kind}": `banner 標示為 {kind}`,
-"beyond rated — upper bound only": `超出額定範圍 — 僅為上限`,
-"raw only — no {kind} curve on the host yet": `僅原始值 — 主機端尚無 {kind} 曲線`,
 "Calibrate motion": `校正動作`,
 "Recalibrate": `重新校正`,
 "Two held poses teach the map how the board sits on your hand.": `維持兩個姿勢，讓地圖知道板子在手上的安裝方向。`,
@@ -1089,10 +1141,10 @@ window.ZH = {
 "Step 2 of 2 — raise it: fingers up, palm facing the screen. Hold still.": `步驟 2／2 — 把手舉起：手指朝上、掌心面向螢幕，保持不動。`,
 "That was too close to the first pose — turn the hand further, then hold still.": `和第一個姿勢太接近 — 請把手轉得更多，再保持不動。`,
 "Cancel calibration": `取消校正`,
-"bend it fully once to set its range": `完整彎曲一次以設定範圍`,
+"Start": `開始`,
+"Choose the strips to calibrate. Unticked strips keep the range they already have.":
+  `選擇要校正的彎曲感測條。未勾選的感測條會保留原本的範圍。`,
 "press Calibrate motion to follow your hand": `按「校正動作」讓模型跟著你的手`,
-"following your hand": `正在跟隨你的手`,
-"following off": `已關閉跟隨`,
 "Calibrate fingers": `校正手指`,
 "Open hand, then a fist: records the range of each flex strip, so a small shift no longer swings the reading.":
   `先張開手、再握拳：記錄每條彎曲感測條的範圍，小幅移位就不會讓讀數大幅跳動。`,
@@ -1103,8 +1155,8 @@ window.ZH = {
 "{names} barely changed between open and fist — check the strip lies over the knuckle, then try again.":
   `{names} 在張手與握拳之間幾乎沒有變化 — 請確認感測條有蓋在指關節上，再試一次。`,
 "Connect the board to light up the fitted sensors.": `連線板子，已安裝的感測器就會亮起。`,
-"The hand model could not be loaded — the sensor list beside it is still live.":
-  `無法載入手部模型 — 旁邊的感測器清單仍然即時更新。`,
+"The hand model could not be loaded — the channel tiles above are still live.":
+  `無法載入手部模型 — 上方的通道卡片仍即時更新。`,
 
 /* stream health */
 "Measured rate": `實測速率`,
@@ -1114,7 +1166,6 @@ window.ZH = {
 "Connected for": `已連線時間`,
 "off": `關閉`,
 "Recording": `錄製`,
-"Rows recorded — {path}": `已錄製列數 — {path}`,
 
 /* scope canvas */
 "now": `現在`,
@@ -1577,7 +1628,25 @@ exact: {
   "pyserial is not installed. Use the Install pyserial button.":
     `尚未安裝 pyserial。請使用「安裝 pyserial」按鈕。`,
   "No port selected.": `未選擇連接埠。`,
+  "bleak is not installed. Use the Install bleak button.":
+    `尚未安裝 bleak。請使用「安裝 bleak」按鈕。`,
+  "A Bluetooth scan is already running.": `藍牙掃描已在進行中。`,
+  "No Bluetooth glove found. Is it switched on and not connected to another computer?":
+    `找不到藍牙手套。手套是否已開啟，且沒有連線到其他電腦？`,
+  "Found 1 Bluetooth glove.": `找到 1 隻藍牙手套。`,
+  "Installing ArduinoBLE — re-flash the firmware afterwards.":
+    `正在安裝 ArduinoBLE — 完成後請重新燒錄韌體。`,
+  "Started the simulated glove.": `已啟動模擬手套。`,
+  "Stopped the simulated glove.": `已停止模擬手套。`,
+  "The simulated glove is not running.": `模擬手套未在執行。`,
+  "Simulator updated.": `模擬器已更新。`,
   "Not connected.": `未連線。`,
+  "The glove connection is recovering. Try again in a moment.":
+    `手套連線正在恢復中，請稍後再試。`,
+  "The board did not take the command. It may have stopped responding.":
+    `板子沒有接收指令，可能已經停止回應。`,
+  "The board has sent nothing since the port was reopened. Press its reset button or replug it.":
+    `重新開啟連接埠後，板子仍沒有送出任何資料。請按它的重置鍵，或重新插拔。`,
   "Already recording.": `已在錄製中。`,
   "Not recording.": `未在錄製。`,
   "Connect to the board first.": `請先連線到板子。`,
@@ -1586,8 +1655,8 @@ exact: {
   "Compiling firmware…": `正在編譯韌體…`,
   "No port selected — pick the board's port first.": `未選擇連接埠 — 請先選擇板子的連接埠。`,
   "No banner yet — connect the board.": `尚未收到識別資訊 — 請先連線板子。`,
-  "This firmware reports no IMU. Install Arduino_LSM9DS1 or Arduino_BMI270_BMM150 to match the board revision, then re-flash.":
-    `這版韌體回報沒有 IMU。請依板子版本安裝 Arduino_LSM9DS1 或 Arduino_BMI270_BMM150，然後重新燒錄。`,
+  "This firmware reports no IMU. Check the MPU6050 wiring on A4/A5 and reconnect, or for an onboard IMU install its library and re-flash.":
+    `這版韌體回報沒有 IMU。請檢查 A4/A5 上 MPU6050 的接線後重新連線；若使用板載 IMU，請安裝對應函式庫後重新燒錄。`,
   "Banner declares an IMU but the six motion columns are missing from cols=.":
     `識別資訊宣告了 IMU，但 cols= 中缺少那六個動作欄位。`,
   "No motion samples in the buffer yet.": `緩衝區內還沒有動作取樣。`,
@@ -1603,12 +1672,26 @@ exact: {
 
 rules: [
   {re: /^Connected to (.+)\.$/,            zh: `已連線至 $1。`},
+  {re: /^Connected over Bluetooth \((.+)\)\.$/, zh: `已透過藍牙連線（$1）。`},
+  {re: /^Found (\d+) Bluetooth gloves\.$/, zh: `找到 $1 隻藍牙手套。`},
+  {re: /^Installing bleak into (.+)…$/,    zh: `正在將 bleak 安裝到 $1…`},
+  {re: /^Bluetooth scan failed: (.+)\. Is Bluetooth on\?$/, zh: `藍牙掃描失敗：$1。藍牙是否已開啟？`},
+  {re: /^Could not connect to the Bluetooth glove: (.+?)\. Check it is on, in range and not connected to another computer, then Scan again\.$/,
+   zh: `無法連線到藍牙手套：$1。請確認手套已開啟、在範圍內，且沒有連線到其他電腦，然後重新掃描。`},
   {re: /^Already connected to (.+)\.$/,    zh: `已經連線至 $1。`},
   {re: /^Disconnected from (.+)\.$/,       zh: `已中斷與 $1 的連線。`},
   {re: /^Could not open ([^:]+): (.+)$/,   zh: `無法開啟 $1：$2`},
   {re: /^Sent (.+)\.$/,                    zh: `已送出 $1。`},
   {re: /^Unknown command: (.+)$/,          zh: `未知的指令：$1`},
   {re: /^Write failed: (.+)$/,             zh: `寫入失敗：$1`},
+  {re: /^Read failed: (.+)$/,              zh: `讀取失敗：$1`},
+  {re: /^Reopen failed: (.+)$/,            zh: `重新開啟失敗：$1`},
+  {re: /^Lost (\S+) \((.+)\) and it did not come back within (\d+) s\. Check the cable, then Connect again\.$/,
+   zh: `與 $1 的連線中斷（$2），且 $3 秒內沒有恢復。請檢查傳輸線，再按「連線」。`},
+  {re: /^Lost (\S+) \((.+)\) and it did not come back within (\d+) s\. Check that the glove is on and in range, then Connect again\.$/,
+   zh: `與 $1 的連線中斷（$2），且 $3 秒內沒有恢復。請確認手套已開啟且在範圍內，再按「連線」。`},
+  {re: /^Bluetooth (?:connect|write) failed: (.+)$/, zh: `藍牙連線失敗：$1`},
+  {re: /^Bluetooth link lost$/,            zh: `藍牙連線中斷`},
   {re: /^Could not start recording: (.+)$/, zh: `無法開始錄製：$1`},
   {re: /^Recording to (.+)$/,              zh: `正在錄製到 $1`},
   {re: /^Saved (\d+) rows to (.+)$/,       zh: `已將 $1 列存到 $2`},

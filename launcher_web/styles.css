@@ -25,6 +25,28 @@
   /* Inter and JetBrains Mono carry no CJK glyphs; Traditional Chinese falls
      through to this stack so both languages look like one system. */
   --font-cjk:'Noto Sans TC','Microsoft JhengHei','PingFang TC','Heiti TC',sans-serif;
+  /* What launcher_web/palette.js re-derives when someone tries another
+     palette. These defaults are the indigo look above, so with no palette
+     saved nothing changes. */
+  --warm-light:#FFB59C;--brand-pale:#C5C8FF;
+  --surface-hi:#161D33;--well:#10152A;--deep:#070A16;
+  --border-mid:#343E60;--border-strong:#3B4566;--line:#49547A;
+  --sheet:#222A44;--sheet-raised:#2B3452;
+  --text-strong:#fff;--text-dim:#929BB6;
+  --peel-1:#252A55;--peel-2:#343B73;--peel-3:#4A5290;
+  --warning-rgb:245,165,36;--danger-rgb:239,68,68;--text-muted-rgb:184,190,208;
+  /* --ink-rgb is the white of the hover washes and hairlines; on a light
+     palette it turns dark so they stay visible. */
+  --ink-rgb:255,255,255;
+  --surface-rgb:18,24,42;--surface-2-rgb:26,34,54;--menu-rgb:14,19,36;
+  --nav-rgb:6,9,20;--scrim-rgb:5,7,16;--vignette-rgb:8,13,29;
+  --floor-rim:#16121A;
+  --floor-tiles:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='38.11' height='66' viewBox='0 0 38.11 66'%3E%3Crect width='38.11' height='66' fill='%23170F0D'/%3E%3Cpath d='M0 18.54L-16.05 9.27L-16.05 -9.27L0 -18.54L16.05 -9.27L16.05 9.27ZM38.11 18.54L22.05 9.27L22.05 -9.27L38.11 -18.54L54.16 -9.27L54.16 9.27ZM19.05 51.54L3 42.27L3 23.73L19.05 14.46L35.11 23.73L35.11 42.27ZM0 84.54L-16.05 75.27L-16.05 56.73L0 47.46L16.05 56.73L16.05 75.27ZM38.11 84.54L22.05 75.27L22.05 56.73L38.11 47.46L54.16 56.73L54.16 75.27Z' fill='%230F1424'/%3E%3C/svg%3E");
+  /* Read by script, not by CSS: the maze (background.js) and the 3D hands
+     (hand3d.js, glove3d.js). */
+  --maze-ink:#0B1020;--maze-deep:#2D3073;--maze-brand:#585FB8;--maze-crest:#7A80CC;--maze-shadow:#03040C;
+  --hand-glow:#FF8F66;--glove-lo:#2A2E7A;--glove-hi:#D5D7FF;--glove-hand:#A3ABC8;
+  --chart-axis:#6F7896;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* `hidden` is only a user-agent rule, so ANY author `display` silently beats
@@ -1373,35 +1395,200 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
 }
 
 /* ── Developer page (sensor glove) ─────────────────────────────────── */
-.dev-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-.dev-pill{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;
-          background:var(--surface-2);border:1px solid var(--border);
-          border-radius:999px;font-size:13px;color:var(--text-muted)}
+/* Developer page exception to UI_STYLE_GUIDE §4/§5 (2026-11-10). A mouse-
+   driven tool for the developer, styled as an instrument panel: tighter
+   corners, 36 px flat keys, and none of the glow, lift or click ripple the
+   rest of the hub's buttons have. Scoped to this page only. */
+#page-dev{--radius:6px;--radius-btn:4px;--dev-lab:128px;--dev-gap:20px}
+#page-dev .btn{height:36px;min-width:36px;padding:0 14px;font-size:13px;gap:7px}
+#page-dev .btn svg{width:14px;height:14px}
+#page-dev .btn .ripple{display:none}
+#page-dev .btn-primary:hover{transform:none;box-shadow:none}
+#page-dev .btn-danger{box-shadow:none}
+/* Secondary keys: flat ink, no outline. */
+#page-dev .btn-ghost{background:var(--deep);border:0;color:var(--text)}
+#page-dev .btn-ghost:hover{background:color-mix(in srgb,var(--deep) 86%,var(--text));color:var(--text-strong)}
+#page-dev .btn:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
+#page-dev .dev-icon-btn{width:36px;padding:0;justify-content:center}
+.dev-key-stop svg{color:var(--danger)}
+
+.dev-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;
+          background:var(--deep);border-radius:var(--radius-btn);font-size:13px;color:var(--text-muted)}
 .dev-pill svg{width:14px;height:14px;flex:none}
 .dev-pill b{color:var(--text);font-weight:600}
+/* The icon carries the status hue. .st-yes / .st-partial on their own lose
+   to .dev-pill's colour (same specificity, declared earlier), which left an
+   "ok" pill and a warning pill looking identical. */
+.dev-pill.st-yes svg{color:var(--success)}
+.dev-pill.st-partial svg{color:var(--warning)}
 /* Status pills mean "is this working", so a missing tool reads as a problem
    rather than the neutral grey the comparison matrix uses. */
 .dev-pill.st-no{color:var(--danger)}
 .dev-pill.st-no b{color:var(--danger)}
 
-.dev-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-.dev-conn{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
+.dev-keys{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.dev-keys:empty{display:none}
 .dev-sel{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted)}
-.dev-sel select{height:44px;padding:0 12px;background:var(--surface-2);color:var(--text);
-                border:1px solid var(--border);border-radius:var(--radius-btn);
-                font:inherit;font-size:13px;max-width:340px}
-.dev-sel select:disabled{opacity:.5}
+/* Selects sit in the same flat ink as the keys. */
+.dev-sel select{height:36px;padding:0 10px;background:var(--deep);color:var(--text);border:0;
+                border-radius:var(--radius-btn);font:inherit;font-size:13px;max-width:340px;cursor:pointer}
+.dev-sel select:hover{background:color-mix(in srgb,var(--deep) 86%,var(--text))}
+.dev-sel select:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
+.dev-sel select:disabled{opacity:.5;cursor:default}
 .dev-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;
            color:var(--text-muted);cursor:pointer}
 .dev-check input{width:16px;height:16px;accent-color:var(--interactive);cursor:pointer}
+.dev-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-.dev-banner{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-            gap:1px;background:var(--border);border:1px solid var(--border);
-            border-radius:var(--radius);overflow:hidden}
-.dev-kv{background:var(--surface);padding:12px 14px;font-size:13px}
-.dev-kv span{display:block;color:var(--text-disabled);font-size:11px;
-             text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
-.dev-kv b{color:var(--text);font-weight:600;font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:13px}
+/* Glove card (dev.js devRenderState / devRenderConn / devRenderEnv), laid
+   out as an instrument panel. Each row is a printed label column and then
+   one content edge that every readout, key and opened fold starts on; rows
+   are split by hairlines. Colour appears only on status glyphs and on the
+   one filled key. */
+.dev-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.dev-line{padding:14px 20px}
+.dev-line + .dev-line{border-top:1px solid var(--border)}
+.dev-line-head{display:grid;grid-template-columns:var(--dev-lab) minmax(0,1fr);
+               column-gap:var(--dev-gap);align-items:baseline}
+.dev-line-lab{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+              line-height:20px;color:var(--text-muted);white-space:nowrap}
+.dev-line-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;min-width:0;line-height:20px}
+.dev-line-more{margin:12px 0 0 calc(var(--dev-lab) + var(--dev-gap))}
+.dev-line-more:empty{display:none}
+.dev-fold .dev-line-more{display:flex;flex-direction:column;gap:14px}
+
+/* Connected-only and idle-only parts follow the card's data-state. */
+.dev-card[data-state="off"] .dev-live{display:none}
+.dev-card:not([data-state="off"]) .dev-idle{display:none}
+
+/* One type scale: the readout in sans, machine values in mono, notes in
+   muted sans. A status glyph sits inline before its word. */
+.dev-read{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;min-width:0}
+.dev-read-v{font-size:14px;font-weight:600;color:var(--text)}
+.dev-val{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12.5px;color:var(--text-muted)}
+.dev-aside{font-size:13px;color:var(--text-muted)}
+.dev-flag{font-size:13px;color:var(--text)}
+.dev-read .dev-flag{color:var(--text-muted)}
+.dev-flags{display:flex;flex-direction:column;gap:4px}
+.dev-read-v svg,.dev-flag svg,.dev-fix-name svg,.dev-spec dt svg{
+  width:14px;height:14px;vertical-align:-2px;margin-right:6px}
+.dev-ck-ok svg{color:var(--success)}
+.dev-ck-warn svg{color:var(--warning)}
+.dev-ck-bad svg{color:var(--danger)}
+
+/* Meters: a printed label, then the reading. */
+.dev-meters{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:flex-end;
+            gap:2px 18px;margin-left:auto;font-variant-numeric:tabular-nums}
+.dev-meters:empty{display:none}
+.dev-m{white-space:nowrap}
+.dev-m i{font-style:normal;font-size:10.5px;font-weight:600;letter-spacing:.08em;
+         text-transform:uppercase;color:var(--text-muted);margin-right:6px}
+.dev-m b{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:13px;font-weight:600;color:var(--text)}
+.dev-m u{text-decoration:none;font-family:'JetBrains Mono',var(--font-cjk),monospace;
+         font-size:12px;color:var(--text-muted);margin-left:4px}
+
+/* Folds (Board, Toolchain, Serial Console): the whole head row is the
+   switch, with a caret printed after the label. Static markup, so a poll
+   refills the body without closing an open fold. */
+.dev-fold > summary{list-style:none;cursor:pointer}
+.dev-fold > summary::-webkit-details-marker{display:none}
+.dev-fold > summary:focus-visible{outline:2px solid var(--interactive);outline-offset:4px;border-radius:2px}
+.dev-fold > summary .dev-line-lab::after{content:"";display:inline-block;width:5px;height:5px;
+  margin-left:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+  transform:translateY(-2px) rotate(-45deg);transition:transform .15s}
+.dev-fold[open] > summary .dev-line-lab::after{transform:translateY(-3px) rotate(45deg)}
+.dev-fold > summary:hover .dev-line-lab{color:var(--text)}
+
+/* Name-over-value pairs (the board's banner, the toolchain checklist) on a
+   transparent grid: a short last row leaves space, never a filled block. */
+.dev-spec{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 24px;margin:0}
+.dev-spec:empty{display:none}
+.dev-spec-i{min-width:0}
+.dev-spec dt{margin:0 0 3px;font-size:10.5px;font-weight:600;letter-spacing:.08em;
+             text-transform:uppercase;color:var(--text-muted)}
+.dev-spec dd{margin:0;font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12.5px;
+             color:var(--text);overflow-wrap:anywhere}
+.dev-spec-wide{grid-column:1 / -1}
+.dev-spec-wide dd{word-spacing:.5em}
+/* Toolchain names are identifiers (pyserial, arduino-cli): keep their case. */
+.dev-checklist{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.dev-checklist dt{font-size:13px;letter-spacing:0;text-transform:none;color:var(--text)}
+.dev-checklist dd{padding-left:20px;color:var(--text-muted);white-space:nowrap;overflow:hidden;
+                  text-overflow:ellipsis}
+
+/* Toolchain problems: flat lines split by hairlines, the fix key at the end. */
+.dev-fix-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding:8px 0;font-size:13px}
+.dev-fix-row:first-child{padding-top:0}
+.dev-fix-row + .dev-fix-row{border-top:1px solid var(--border)}
+.dev-fix-name{font-weight:600;color:var(--text)}
+.dev-fix-val{color:var(--text-muted)}
+.dev-fix-row .btn{margin-left:auto;align-self:center}
+.dev-fix-note{flex-basis:100%;margin:0 0 0 20px;font-size:12.5px;line-height:1.5;color:var(--text-muted)}
+.dev-fix-note code{background:var(--deep);padding:1px 5px;border-radius:3px;
+                   font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12px;color:var(--text)}
+
+/* Scope: the bar is the panel's header strip, the trace sits under it. */
+.dev-scope-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+                 overflow:hidden;margin-bottom:16px}
+.dev-scope-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;
+               border-bottom:1px solid var(--border)}
+.dev-scope-panel .dev-legend{margin:0;padding:10px 14px}
+.dev-scope-panel .dev-legend:empty{display:none}
+.dev-scope-panel .dev-scope-wrap{border:0;border-radius:0;margin:0}
+/* Segmented choices: an ink well; the pressed one gets a lighter ground and
+   a flat underline. No ring, no glow. */
+.dev-seg{display:inline-flex;align-items:center;gap:2px;padding:2px;background:var(--deep);
+         border-radius:var(--radius-btn)}
+.dev-seg-lab{padding:0 6px 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.08em;
+             text-transform:uppercase;color:var(--text-muted)}
+.dev-seg button{height:32px;min-width:32px;padding:0 12px;border:0;border-radius:3px;background:none;
+  color:var(--text-muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  transition:color .12s,background .12s}
+.dev-seg button:hover{color:var(--text)}
+.dev-seg button[aria-pressed="true"]{color:var(--text-strong);
+  background:color-mix(in srgb,var(--deep) 80%,var(--text));box-shadow:inset 0 -2px 0 var(--brand)}
+.dev-seg button:focus-visible{outline:2px solid var(--interactive);outline-offset:1px}
+.dev-bar-gap{flex:1 1 0;min-width:0}
+#page-dev .dev-pause[aria-pressed="true"]{color:var(--text-strong);box-shadow:inset 0 -2px 0 var(--brand)}
+@media (prefers-reduced-motion:reduce){
+  .dev-fold > summary .dev-line-lab::after,.dev-seg button{transition:none}
+}
+
+/* Simulated glove: keycaps that light while held (dev.js devRenderSim). A
+   held key also sinks and reports aria-pressed, so "held" is never colour
+   alone. Caps are at least 44 px for a finger on a touch screen.
+   It takes the glove map list's column and card, so it matches that card. */
+.dev-sim{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+         padding:6px 14px 14px;display:grid;gap:14px;align-content:start}
+.dev-sim[hidden]{display:none}
+.dev-sim-gh{display:flex;align-items:center;justify-content:space-between;gap:8px;
+            min-height:30px;margin:8px 0}
+.dev-sim-group h3{font-size:11px;font-weight:600;color:var(--text-disabled);margin:0;
+                  text-transform:uppercase;letter-spacing:.05em}
+.dev-sim-gh .dev-pill{padding:3px 10px;font-size:12px;gap:6px}
+.dev-sim-caps{display:flex;flex-wrap:wrap;gap:8px}
+.dev-kc{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+        min-width:50px;min-height:48px;padding:5px 8px;border-radius:10px;
+        background:var(--surface-2);color:var(--text);font:inherit;cursor:pointer;
+        border:1px solid var(--border);border-bottom-width:3px;
+        touch-action:none;user-select:none;-webkit-user-select:none;
+        transition:transform 120ms ease-out,background 120ms ease-out,border-color 120ms ease-out}
+.dev-kc.wide{min-width:72px}
+.dev-kc kbd{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:15px;font-weight:700;line-height:1}
+.dev-kc span{font-size:11px;line-height:1.2;color:var(--text-muted);white-space:nowrap}
+.dev-kc:hover{border-color:rgba(var(--ink-rgb),.2)}
+.dev-kc:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
+.dev-kc.on{background:var(--interactive);border-color:var(--interactive);color:var(--on-accent);
+           border-bottom-width:1px;transform:translateY(2px)}
+.dev-kc.on span{color:var(--on-accent)}
+.dev-sim-sliders{display:grid;gap:4px;margin-top:10px}
+.dev-sim-slider{display:grid;grid-template-columns:80px 1fr 64px;align-items:center;gap:10px;
+                font-size:13px;color:var(--text-muted)}
+.dev-sim-slider input{width:100%;height:44px;margin:0;accent-color:var(--interactive);cursor:pointer}
+.dev-sim-slider output{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12px;
+                       color:var(--text);text-align:right}
+@media (prefers-reduced-motion:reduce){.dev-kc{transition:none}.dev-kc.on{transform:none}}
+
 .dev-banner-empty{background:var(--surface);padding:16px;border-radius:var(--radius);
                   border:1px solid var(--border);color:var(--text-disabled);font-size:13px}
 
@@ -1416,11 +1603,34 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
 .dev-scope-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
                  color:var(--text-disabled);font-size:14px;pointer-events:none}
 
-.dev-chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
-.dev-chan{background:var(--surface);border:1px solid var(--border);
-          border-radius:var(--radius);padding:14px}
-.dev-chan-head{margin-bottom:8px;display:flex;align-items:center;
-               justify-content:space-between;gap:8px}
+/* Channel readings: one card per sensor type, one row per channel. */
+.dev-chan-grid{display:flex;flex-direction:column;gap:12px}
+.dev-group{background:var(--surface);border:1px solid var(--border);
+           border-radius:var(--radius);padding:4px 14px 6px}
+.dev-group-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+                padding:8px 0;border-bottom:1px solid var(--border)}
+.dev-group-title{font-size:13px;font-weight:600;color:var(--text)}
+.dev-row{display:grid;align-items:center;gap:12px;padding:7px 0;
+         grid-template-columns:72px 104px 72px minmax(60px,1fr) 128px 104px}
+.dev-row + .dev-row{border-top:1px solid var(--border)}
+.dev-row-name{white-space:nowrap}
+.dev-row-val{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:16px;font-weight:700;
+             color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dev-row-sub,.dev-row-peak{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:11px;
+             color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap;
+             overflow:hidden;text-overflow:ellipsis}
+.dev-row-peak{color:var(--text-disabled)}
+.dev-row-badge{min-width:0;display:flex;justify-content:flex-end}
+.dev-row .dev-badge{margin-top:0;font-size:9.5px;padding:2px 7px}
+/* Fixed column, one short word or two: the full note is on hover, so a
+   status change never resizes the row or shifts its bar. */
+.dev-row .dev-badge{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.dev-row .dev-chan-bar{margin:0}
+@media (max-width:640px){
+  .dev-row{grid-template-columns:64px 1fr auto;row-gap:4px}
+  .dev-row .dev-chan-bar{grid-column:1 / -1}
+  .dev-row-peak{grid-column:1 / 3}
+}
 /* Which curve this channel's reading came from. Small, but it must be visible:
    a force number and a bend number look alike and mean nothing alike. */
 .dev-chan-kind{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:10px;
@@ -1428,11 +1638,9 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
                color:var(--text-disabled);border:1px solid var(--border);
                border-radius:4px;padding:1px 6px;flex:none}
 .dev-swatch{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
-.dev-chan-val{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:30px;font-weight:700;
-              color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
-.dev-chan-sub{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12px;color:var(--text-muted);
-              font-variant-numeric:tabular-nums;margin-top:2px}
-.dev-chan-span{font-size:11px;color:var(--text-disabled);margin-top:6px}
+
+
+
 /* Current force as a bar, with a notch at the peak. A glanceable companion to
    the number above it - never the only carrier of the value (style guide 2.4). */
 .dev-chan-bar{position:relative;height:6px;border-radius:3px;background:var(--surface-2);
@@ -1453,95 +1661,79 @@ body[data-hub]:not([data-hub="connected"]) nav .pf-nav{display:none}
 .dev-stat-l{font-size:11px;color:var(--text-disabled);margin-top:4px;line-height:1.35}
 
 /* Motion card (Developer page). Reuses .dev-health/.dev-stat for the numbers;
-   these classes only cover the per-axis rows, which are their own shape: a
-   signed bar centred on zero, because acceleration has a direction and a
-   0-based bar would hide it. */
+   the per-axis readings live in the channel rows above. */
 .dev-note{font-size:13px;line-height:1.6;color:var(--text-muted);margin:0 0 14px}
 .dev-note code{background:var(--surface-2);padding:1px 6px;border-radius:5px;
                font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12px;color:var(--text)}
-.dev-axes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-          gap:6px 18px;margin-top:14px}
-.dev-axis{display:flex;align-items:center;gap:10px}
-.dev-axis-l{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:11px;
-            color:var(--text-disabled);width:22px;flex:none}
-.dev-axis-bar{position:relative;flex:1;height:6px;border-radius:3px;
-              background:var(--surface-2);overflow:hidden}
-/* Centre rule: zero is a place on the track, not the left edge. */
-.dev-axis-bar::before{content:"";position:absolute;left:50%;top:0;bottom:0;
-                      width:1px;background:var(--border)}
-.dev-axis-bar i{position:absolute;top:0;bottom:0;border-radius:3px}
-.dev-axis-v{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:11px;color:var(--text);
-            font-variant-numeric:tabular-nums;width:74px;text-align:right;flex:none}
 .dev-imu-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 
 /* Glove map (glove3d.js). A 3D hand beside a plain list of the same channels:
    the list is what carries the numbers and statuses in words (style guide
-   2.4), and it is the whole map on a machine without WebGL. */
-.g3d{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
-@media (max-width:900px){ .g3d{grid-template-columns:1fr} }
-.g3d-stage{position:relative;height:460px;background:radial-gradient(ellipse at 50% 40%,#182039,var(--surface) 70%);
+   2.4), and it is the whole map on a machine without WebGL. The stage holds
+   only the hand and the flex %; the controls sit in a row beneath it. */
+/* The hand alone takes the full width; the simulated glove's keys add a side
+   column only while the simulator runs (dev.js toggles .with-sim). */
+.g3d{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+/* With the key panel beside it, both columns end level: the panel sets the
+   height and the hand view grows to fill the left column. */
+.g3d.with-sim{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:stretch}
+@media (max-width:900px){ .g3d.with-sim{grid-template-columns:minmax(0,1fr)} }
+.g3d-main{min-width:0;display:flex;flex-direction:column;gap:10px}
+.g3d-stage{position:relative;flex:1 1 auto;min-height:460px;background:radial-gradient(ellipse at 50% 42%,var(--surface-hi),var(--surface) 72%);
            border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-#g3d-canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#g3d-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
 #g3d-canvas:active{cursor:grabbing}
 .g3d-tags{position:absolute;inset:0;pointer-events:none}
-.g3d-tag{position:absolute;left:0;top:0;white-space:nowrap;padding:2px 7px;border-radius:999px;
-         background:rgba(var(--bg-rgb),.82);border:1px solid var(--border);font-size:11px;
-         font-family:'JetBrains Mono',var(--font-cjk),monospace;color:var(--text-muted);
-         font-variant-numeric:tabular-nums}
-.g3d-tag b{color:var(--text);font-weight:600;margin-right:5px}
-.g3d-tag.warn{border-color:rgba(245,165,36,.5);color:var(--warning)}
-.g3d-views{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.g3d-views .btn{height:36px;padding:0 14px;font-size:13px;background:rgba(var(--bg-rgb),.7)}
-.g3d-views .dev-check{padding:0 10px;height:36px;border-radius:var(--radius-btn);background:rgba(var(--bg-rgb),.7)}
-.g3d-views .dev-sel{padding:0 10px;height:36px;border-radius:var(--radius-btn);background:rgba(var(--bg-rgb),.7);
-                    display:inline-flex;align-items:center;gap:6px;font-size:13px}
+/* A flex %: bare figures on a soft halo (text over the 3D view, style guide
+   2.4), no pill. Muted while the strip reads against its placeholder span. */
+.g3d-tag{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform;
+         font:500 12px/1 'JetBrains Mono',var(--font-cjk),monospace;font-variant-numeric:tabular-nums;
+         color:var(--text);text-shadow:0 0 3px rgba(var(--bg-rgb),.95),0 1px 2px rgba(var(--bg-rgb),.9)}
+.g3d-tag i{font-style:normal;font-size:10px;color:var(--text-muted);margin-left:1px}
+.g3d-tag.muted{color:var(--text-muted)}
+.g3d-views{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.g3d-views .btn{height:36px;padding:0 14px;font-size:13px}
+.g3d-views .dev-sel select{height:36px}
 .g3d-views .btn:disabled{opacity:.45;cursor:not-allowed}
+.g3d-spacer{flex:1 1 0;min-width:0}
 .g3d-cal{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(420px,calc(100% - 24px));
-         background:rgba(var(--bg-rgb),.92);border:1px solid var(--brand);border-radius:var(--radius);
+         background:rgba(var(--bg-rgb),.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+         border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 12px 32px rgba(0,0,0,.28);
          padding:14px 16px;font-size:14px;color:var(--text);text-align:center}
 .g3d-cal p{margin:0 0 10px;line-height:1.45}
 .g3d-cal .g3d-cal-err{color:var(--warning);font-size:13px}
+.g3d-cal .g3d-cal-picks{display:flex;flex-wrap:wrap;gap:6px 14px}
 .g3d-cal-bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-bottom:12px}
 .g3d-cal-bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .1s linear}
 @media (prefers-reduced-motion: reduce){ .g3d-cal-bar i{transition:none} }
 .g3d-empty{position:absolute;left:0;right:0;top:14px;text-align:center;font-size:13px;
            color:var(--text-disabled);pointer-events:none}
-.g3d-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-          padding:6px 14px 12px}
-.g3d-group{font-size:11px;color:var(--text-disabled);text-transform:uppercase;letter-spacing:.05em;
-           margin:12px 0 4px}
-.g3d-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto;column-gap:10px;align-items:center;
-         padding:5px 0;border-top:1px solid var(--border);font-size:13px}
-.g3d-row b{font-family:'JetBrains Mono',var(--font-cjk),monospace;color:var(--text)}
-.g3d-site{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.g3d-val{font-family:'JetBrains Mono',var(--font-cjk),monospace;color:var(--text);
-         font-variant-numeric:tabular-nums;text-align:right}
-.g3d-row .dev-badge{grid-column:2 / 4;justify-self:start;margin-top:3px}
 
-.dev-console{background:#070A16;border:1px solid var(--border);border-radius:var(--radius);
+.dev-console{background:var(--deep);border:0;border-radius:var(--radius-btn);
              padding:14px;height:200px;overflow:auto;font-family:'JetBrains Mono',var(--font-cjk),monospace;
              font-size:12px;line-height:1.5;color:var(--text-muted);white-space:pre-wrap;
              word-break:break-all}
 .dev-console:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
+/* The console folds away: it is for the rare moment a board misbehaves. */
+.dev-console-card{margin-top:36px}
+.dev-console-tools{align-items:center;gap:8px 16px}
 
 @media (max-width:720px){
   .dev-scope-wrap{height:220px}
   .dev-sel select{max-width:100%}
-  .dev-conn{flex-direction:column;align-items:stretch}
+  .dev-line{padding:12px 14px}
+  .dev-line-head{grid-template-columns:minmax(0,1fr);row-gap:4px}
+  .dev-line-more{margin-left:0}
+  .dev-meters{margin-left:0;justify-content:flex-start}
+  #dev-conn .dev-sel{flex:1 1 100%}
+  #dev-conn .dev-sel select{width:100%}
 }
-.dev-warn{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);
-          border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;
-          font-size:13px;line-height:1.55;color:var(--text-muted)}
-.dev-warn strong{color:var(--danger)}
-.dev-warn code{background:var(--surface-2);padding:1px 6px;border-radius:5px;
-               font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:12px;color:var(--text)}
-.dev-chan-raw{font-family:'JetBrains Mono',var(--font-cjk),monospace;font-size:11px;
-              color:var(--text-disabled);font-variant-numeric:tabular-nums;margin-top:8px}
-.dev-badge{display:inline-block;margin-top:7px;padding:3px 8px;border-radius:999px;
-           font-size:10px;letter-spacing:.03em;border:1px solid transparent;white-space:nowrap}
-.dev-badge-ok{color:var(--success);border-color:rgba(var(--success-rgb),.35);background:rgba(var(--success-rgb),.08)}
-.dev-badge-warn{color:var(--warning);border-color:rgba(245,165,36,.4);background:rgba(245,165,36,.1)}
-.dev-badge-dim{color:var(--text-disabled);border-color:var(--border);background:var(--surface-2)}
+
+.dev-badge{display:inline-block;margin-top:7px;padding:3px 7px;border-radius:3px;
+           font-size:10px;letter-spacing:.03em;border:0;white-space:nowrap}
+.dev-badge-ok{color:var(--success);background:rgba(var(--success-rgb),.1)}
+.dev-badge-warn{color:var(--warning);background:rgba(var(--warning-rgb),.12)}
+.dev-badge-dim{color:var(--text-disabled);background:var(--surface-2)}
 
 /* ── Hub connection panel (published site only) ─────────────────────
    tools/web_static/static-api.js puts the hub state on <body>. The local

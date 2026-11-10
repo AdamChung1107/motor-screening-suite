@@ -431,7 +431,12 @@ def launch_tool(key: str, lang: str | None = None) -> tuple[bool, str]:
     # Give each tool its own console so print()/input() (e.g. the camera
     # prompt in hand_tracking.py) have somewhere to go.
     note = ""
-    if key in GLOVE_TOOLS and _glove is not None and _glove.is_connected():
+    # The simulated glove holds no COM port, so there is nothing to release:
+    # the test opens the real port itself, and never sees the simulator.
+    # Neither does a Bluetooth link: the test looks for the glove on USB.
+    if (key in GLOVE_TOOLS and _glove is not None and _glove.is_connected()
+            and not _glove.is_simulated()
+            and not str(_glove.port or "").startswith("BLE:")):
         _glove.disconnect()
         note = " Released the glove to the test — reconnect on the Developer page afterwards."
 
@@ -524,9 +529,14 @@ IMU_LIBS = (("BMI270_BMM150", "Arduino_BMI270_BMM150"),
             ("LSM9DS1", "Arduino_LSM9DS1"))
 
 #: Maps the sketch's selection macro to the banner name above.
-IMU_SELECT_MACROS = {"GLOVE_IMU_BMI270": "BMI270_BMM150",
+IMU_SELECT_MACROS = {"GLOVE_IMU_MPU6050": "MPU6050",
+                     "GLOVE_IMU_BMI270": "BMI270_BMM150",
                      "GLOVE_IMU_LSM9DS1": "LSM9DS1",
                      "GLOVE_IMU_NONE": "none"}
+
+#: Selections that compile with no library installed: the external MPU6050
+#: on A4/A5 is driven by register inside glove.ino.
+IMU_NO_LIBRARY = ("none", "MPU6050")
 
 _arduino_user_dir_cache: str | None = None
 
@@ -627,16 +637,22 @@ def dev_env_payload() -> dict:
         "venv_present": os.path.exists(os.path.join(BASE_DIR, ".venv")),
         "on_venv": on_venv,
         "pyserial": pyserial,
+        # Bluetooth gloves (fw 0.11.0+). Optional, like pyserial.
+        # Not in missing_deps: a USB-only setup is complete without it.
+        "bleak": _dep_present("bleak"),
         "arduino_cli": cli,
         "arduino_cli_present": cli is not None,
         "mbed_core": _mbed_core_present(),
         # Which IMU library the sketch would compile against, and whether the
         # ambiguous both-installed case needs resolving.
         "imu_libs": imu_libs,
+        # The firmware's Bluetooth link (fw 0.11.0+) needs ArduinoBLE to compile.
+        "ble_lib": (os.path.isdir(os.path.join(_arduino_user_dir(), "libraries",
+                                               "ArduinoBLE")) if cli else False),
         # What glove.ino will actually compile against, and whether that
         # library is present. "none" is a valid selection, not a problem.
         "imu_selected": imu_selected,
-        "imu_ready": (imu_selected == "none"
+        "imu_ready": (imu_selected in IMU_NO_LIBRARY
                       or (imu_selected is not None and imu_selected in imu_libs)),
         "arduino_user_dir": _arduino_user_dir() if cli else None,
         "sketch_present": os.path.isfile(os.path.join(FIRMWARE_DIR, "glove.ino")),
@@ -652,6 +668,16 @@ def _dev_command(task: str, port: str | None) -> tuple[list[str] | None, str]:
     """Build the argv for a dev task, or explain why it can't run."""
     if task == "setup":
         return [sys.executable, os.path.join(BASE_DIR, "install.py")], "Running setup…"
+    if task == "install_arduinoble":
+        cli = _arduino_cli()
+        if cli is None:
+            return None, "arduino-cli not found — install the toolchain first."
+        return ([cli, "lib", "install", "ArduinoBLE"],
+                "Installing ArduinoBLE — re-flash the firmware afterwards.")
+    if task == "install_bleak":
+        # Same reasoning as pyserial: the hub process is what imports it.
+        return ([sys.executable, "-m", "pip", "install", "bleak"],
+                f"Installing bleak into {os.path.basename(sys.executable)}…")
     if task == "install_pyserial":
         # Install into the interpreter running THIS process, not the venv:
         # this hub is what has to import pyserial, and installing into a
@@ -699,9 +725,10 @@ def run_dev_task(task: str, port: str | None) -> tuple[bool, str]:
     note = ""
     if task == "upload":
         # Windows allows one owner per COM port: the reader must let go or
-        # bossac cannot open the board.
+        # bossac cannot open the board. (A Bluetooth link is dropped too: the
+        # board reboots after a flash and the link would only stall.)
         glove = _get_glove()
-        if glove.is_connected():
+        if glove.is_connected() and not glove.is_simulated():
             glove.disconnect()
             note = " Disconnected the live stream first — reconnect when it finishes."
 
@@ -1346,6 +1373,14 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/dev/run":
             return run_dev_task(str(data.get("task", "")), data.get("port") or None)
 
+        if route == "/api/glove/scan":
+            # Blocks this request for the scan (~5 s); the page shows a busy
+            # button meanwhile, then reloads the port list, which now carries
+            # whatever was found.
+            from core.glove.ble_io import scan
+            ok, msg, _found = scan()
+            return ok, msg
+
         glove = _get_glove()
         if route == "/api/glove/connect":
             return glove.connect(str(data.get("port", "")))
@@ -1355,6 +1390,9 @@ class Handler(BaseHTTPRequestHandler):
             return glove.send_command(str(data.get("cmd", "")))
         if route == "/api/glove/record":
             return glove.start_recording() if data.get("on") else glove.stop_recording()
+        if route == "/api/glove/sim":
+            # Held keys from the Developer page's simulator panel.
+            return glove.sim_input(data)
         return False, f"Unknown endpoint: {route}"
 
 

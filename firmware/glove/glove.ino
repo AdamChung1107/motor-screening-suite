@@ -4,11 +4,11 @@
  * Implements the analog front end and serial protocol specified in
  * docs/glove/GLOVE_FIRMWARE_PLAN.md (sections 3 and 4).
  *
- * Current hardware (2026-11-08, first build with the mux): three FSR402 pads
- * wired directly - p0 on A1 (thumb tip), p1 on A2 (index tip), p2 on A3
- * (middle tip) - and four flex strips through a CD74HC4067 on C0-C3, thumb ->
- * ring (f0..f3), read on A0. Each sensor is its own divider against the 3V3
- * rail:
+ * Current hardware (2026-11-08, fw 0.10.0): four FSR402 pads wired directly -
+ * p0 on A1 (thumb tip), p1 on A2 (index tip), p2 on A3 (middle tip), p3 on A6
+ * (ring tip) - five flex strips through a CD74HC4067 on C0-C4, thumb -> pinky
+ * (f0..f4), read on A0, and an MPU6050 on the header I2C bus (A4 = SDA,
+ * A5 = SCL). Each analog sensor is its own divider against the 3V3 rail:
  *     3V3 --- SENSOR --- Ax --- rFixed --- GND
  * The pads use 10k; the strips use 47k. That is why rFixed is per
  * channel in CHANNELS[] rather than one global: a divider is most sensitive
@@ -21,6 +21,13 @@
  * NOT an analog channel: it never touches the divider maths, and its columns
  * are declared in the banner with kinds `accel`/`gyro` so the host cannot apply
  * a resistance curve to an acceleration.
+ *
+ * Two transports, the same data (fw 0.11.0). USB serial carries the text
+ * protocol below. Bluetooth LE (Nano 33 BLE only) carries the SAME text lines
+ * for everything except data frames, which go as compact binary records, over
+ * the Nordic UART Service, so the glove streams on battery with no cable. Both
+ * run at once when both are connected; commands are accepted from either. See
+ * "Bluetooth LE" below for the record layout the host decodes.
  *
  * Firmware emits RAW counts only - ADC counts for the analog channels, and
  * integer milli-units for the IMU. Conversion to newtons and degrees is a
@@ -64,10 +71,16 @@
 
 /* ---------- IMU ---------------------------------------------------------- */
 /*
- * PICK THE LINE THAT MATCHES THE SILKSCREEN ON YOUR BOARD, then re-flash.
- * The original Nano 33 BLE carries an LSM9DS1; the Rev2 carries a BMI270 +
- * BMM150, and they need different Arduino libraries (plan section 1.3).
- * Install the one you pick from the Developer page's toolchain buttons.
+ * PICK THE LINE THAT MATCHES THE IMU YOU ARE USING, then re-flash.
+ *
+ * GLOVE_IMU_MPU6050 (the default since fw 0.10.0) is an external MPU6050
+ * breakout on the header I2C pins, A4 = SDA and A5 = SCL. It is driven by
+ * register below and needs NO library. Its point is placement: the module
+ * sits on the back of the hand, where the board's own IMU cannot.
+ *
+ * The onboard options: the original Nano 33 BLE carries an LSM9DS1, the Rev2
+ * a BMI270 + BMM150, and they need different Arduino libraries (plan section
+ * 1.3). Install the one you pick from the Developer page's toolchain buttons.
  *
  * WHY THIS IS AN EXPLICIT SWITCH AND NOT __has_include. That was tried first
  * and is silently broken: arduino-cli (and the IDE, which uses it) discovers
@@ -83,11 +96,16 @@
  * GLOVE_IMU_NONE is a legitimate build: no motion columns, no IMU library
  * needed, everything else unchanged.
  */
+#define GLOVE_IMU_MPU6050     /* external, A4/A5       */
 //#define GLOVE_IMU_LSM9DS1   /* original Nano 33 BLE  */
-#define GLOVE_IMU_BMI270      /* Nano 33 BLE Rev2      */
+//#define GLOVE_IMU_BMI270    /* Nano 33 BLE Rev2      */
 //#define GLOVE_IMU_NONE      /* build without motion  */
 
-#if defined(GLOVE_IMU_BMI270)
+#if defined(GLOVE_IMU_MPU6050)
+  #define HAS_IMU 1
+  #define IMU_EXTERNAL 1
+  #define IMU_LIB_NAME "MPU6050"
+#elif defined(GLOVE_IMU_BMI270)
   #include <Arduino_BMI270_BMM150.h>
   #define HAS_IMU 1
   #define IMU_LIB_NAME "BMI270_BMM150"
@@ -119,20 +137,202 @@
  *
  * 400 kHz (I2C fast mode) is within spec for BOTH parts: the BMI270 datasheet
  * allows up to 1 MHz and the LSM9DS1 up to 400 kHz, so this value is capped by
- * the LSM9DS1 and must not be raised without splitting it per library. The IMU
- * sits on the board's own internal bus (Wire1 on the Nano 33 BLE, which is why
- * both libraries construct against it) with fixed onboard pull-ups, so this
- * does not depend on how anything is wired to the headers.
+ * the LSM9DS1 and must not be raised without splitting it per library. The
+ * onboard IMUs sit on the board's own internal bus (Wire1 on the Nano 33 BLE,
+ * which is why both libraries construct against it) with fixed onboard
+ * pull-ups. The MPU6050 is also rated for 400 kHz; it runs on the header bus
+ * (Wire, A4/A5) and leans on the breakout's own pull-ups (4.7k on a GY-521).
+ * If it drops out on a long cable, that is the place to look.
  */
 static const uint32_t IMU_I2C_HZ = 400000;
 
-/* The bus the onboard IMU is on. Kept beside the library choice above rather
- * than assumed, because it is the same fact stated twice. */
-#if defined(ARDUINO_ARDUINO_NANO33BLE) || defined(ARDUINO_ARCH_MBED)
+/* The bus the IMU is on. Kept beside the library choice above rather than
+ * assumed, because it is the same fact stated twice. */
+#if defined(IMU_EXTERNAL)
+  #define IMU_WIRE Wire
+#elif defined(ARDUINO_ARDUINO_NANO33BLE) || defined(ARDUINO_ARCH_MBED)
   #define IMU_WIRE Wire1
 #else
   #define IMU_WIRE Wire
 #endif
+#endif
+
+#if defined(GLOVE_IMU_MPU6050)
+/*
+ * MPU6050, by register. Small enough that a library would add a dependency
+ * without adding anything else, and it makes the whole sample ONE 14-byte
+ * burst (accel, temperature, gyro) - about 0.4 ms at 400 kHz, against the
+ * ~6 ms the onboard IMU's four library transactions cost.
+ *
+ * Configuration, and why:
+ *  - DLPF_CFG = 3: accel 44 Hz / gyro 42 Hz bandwidth, ~5 ms delay. This is the
+ *    anti-alias filter for the 100 Hz frame grid (Nyquist 50 Hz) and still
+ *    passes the whole 3-12 Hz tremor band untouched.
+ *  - SMPLRT_DIV = 0: with the DLPF on the output rate is 1 kHz, so every 10 ms
+ *    frame finds a fresh sample and `held` stays at zero. (The onboard chips
+ *    run near 100 Hz unlocked to our grid, which is what `held` was for.)
+ *  - Accel +/-4 g (8192 LSB/g), gyro +/-1000 dps (32.8 LSB/dps): a brisk
+ *    pronation-supination passes 500 dps, and 2000 throws away resolution a
+ *    resting tremor needs.
+ */
+static uint8_t g_mpuAddr = 0x68;    /* AD0 low; 0x69 is tried too */
+static uint8_t g_mpuWho  = 0;       /* WHO_AM_I, reported in 'D' */
+static uint32_t g_mpuFails = 0;     /* failed bursts since 'Z', reported in 'D' */
+static uint16_t g_mpuFailRun = 0;   /* consecutive failures, drives recovery */
+
+/*
+ * SOFTWARE I2C, WITH A TIMEOUT ON EVERYTHING. Do not go back to Wire here.
+ *
+ * fw 0.10.0 read the MPU6050 through the mbed core's Wire. Measured
+ * 2026-11-08: after a few minutes of open/fist movement the board went
+ * silent - USB still enumerated, but loop() never ran again and the sketch
+ * answered nothing, not even '?'. The mbed I2C driver waits without a
+ * timeout, so one glitch on a header wire that a hand flexes all the time
+ * hangs the whole sampler. Here every wait is bounded: a bad wire costs held
+ * IMU samples (counted), never the analog channels or the stream.
+ *
+ * The pins are driven as true open-drain (nRF S0D1: drive 0, release 1) so
+ * the bus never sees push-pull, with the internal pull-up as a backstop to the
+ * breakout's own 4.7k.
+ *
+ * Timing is a busy spin, NOT delayMicroseconds(): on the mbed core that call
+ * costs several microseconds even for 1, and the first build of this driver
+ * spent 4.9 ms of the 10 ms frame on one 14-byte read. Tune I2C_HALF_SPIN
+ * against the 'D' timing line (imu=); the bus clock is whatever results.
+ */
+#include <nrf_gpio.h>
+static uint32_t g_sda = 0, g_scl = 0;      /* nRF pin numbers for A4 / A5 */
+static const uint16_t I2C_HALF_SPIN  = 8;     /* spin per half-bit */
+static const uint16_t I2C_STRETCH_SPIN = 4000; /* SCL rise timeout, ~0.2 ms */
+
+static inline void i2cDelay() {
+  for (volatile uint16_t i = 0; i < I2C_HALF_SPIN; i++) { }
+}
+static inline void sdaLow()  { nrf_gpio_pin_clear(g_sda); }
+static inline void sdaHigh() { nrf_gpio_pin_set(g_sda); }
+static inline void sclLow()  { nrf_gpio_pin_clear(g_scl); }
+/* Release SCL and wait for it to actually rise (clock stretching, or a
+ * shorted line). False means the bus is stuck - abandon the transaction. */
+static bool sclHigh() {
+  nrf_gpio_pin_set(g_scl);
+  for (uint16_t t = 0; t < I2C_STRETCH_SPIN; t++) {
+    if (nrf_gpio_pin_read(g_scl)) return true;
+  }
+  return false;
+}
+static void i2cPinInit(uint32_t pin) {
+  nrf_gpio_pin_set(pin);
+  nrf_gpio_cfg(pin, NRF_GPIO_PIN_DIR_OUTPUT, NRF_GPIO_PIN_INPUT_CONNECT,
+               NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_S0D1, NRF_GPIO_PIN_NOSENSE);
+}
+/* Clock out up to nine pulses until a slave holding SDA low lets go, then a
+ * STOP. The standard recovery for a slave left mid-byte by a reset or glitch. */
+static void i2cRecover() {
+  sdaHigh();
+  for (uint8_t i = 0; i < 9 && !nrf_gpio_pin_read(g_sda); i++) {
+    sclLow(); i2cDelay(); sclHigh(); i2cDelay();
+  }
+  sdaLow(); i2cDelay(); sclHigh(); i2cDelay(); sdaHigh(); i2cDelay();
+}
+static bool i2cStart() {
+  sdaHigh();
+  if (!sclHigh()) return false;
+  i2cDelay();
+  if (!nrf_gpio_pin_read(g_sda)) return false;   /* someone holds SDA */
+  sdaLow(); i2cDelay(); sclLow(); i2cDelay();
+  return true;
+}
+static void i2cStop() {
+  sdaLow(); i2cDelay();
+  sclHigh(); i2cDelay();
+  sdaHigh(); i2cDelay();
+}
+/* Returns true on ACK. */
+static bool i2cWriteByte(uint8_t v) {
+  for (uint8_t m = 0x80; m; m >>= 1) {
+    if (v & m) sdaHigh(); else sdaLow();
+    i2cDelay();
+    if (!sclHigh()) return false;
+    i2cDelay();
+    sclLow();
+  }
+  sdaHigh(); i2cDelay();
+  if (!sclHigh()) return false;
+  const bool ack = !nrf_gpio_pin_read(g_sda);
+  i2cDelay();
+  sclLow();
+  return ack;
+}
+static bool i2cReadByte(uint8_t *out, bool ack) {
+  uint8_t v = 0;
+  sdaHigh();
+  for (uint8_t i = 0; i < 8; i++) {
+    i2cDelay();
+    if (!sclHigh()) return false;
+    v = (uint8_t)((v << 1) | (nrf_gpio_pin_read(g_sda) ? 1 : 0));
+    i2cDelay();
+    sclLow();
+  }
+  if (ack) sdaLow(); else sdaHigh();
+  i2cDelay();
+  if (!sclHigh()) return false;
+  i2cDelay();
+  sclLow();
+  sdaHigh();
+  *out = v;
+  return true;
+}
+
+static bool mpuWrite(uint8_t reg, uint8_t val) {
+  bool ok = i2cStart() && i2cWriteByte((uint8_t)(g_mpuAddr << 1))
+            && i2cWriteByte(reg) && i2cWriteByte(val);
+  i2cStop();
+  return ok;
+}
+
+static bool mpuRead(uint8_t reg, uint8_t *buf, uint8_t n) {
+  bool ok = i2cStart() && i2cWriteByte((uint8_t)(g_mpuAddr << 1))
+            && i2cWriteByte(reg)
+            && i2cStart()                                  /* repeated start */
+            && i2cWriteByte((uint8_t)((g_mpuAddr << 1) | 1));
+  for (uint8_t i = 0; ok && i < n; i++) ok = i2cReadByte(&buf[i], i + 1 < n);
+  i2cStop();
+  return ok;
+}
+
+/* Register setup, no delays, so it can also re-run mid-stream after the
+ * module browned out or a wire came loose and back. */
+static bool mpuConfigure() {
+  return mpuWrite(0x6B, 0x01)        /* wake, PLL on gyro X clock */
+      && mpuWrite(0x1A, 0x03)        /* CONFIG: DLPF_CFG = 3 */
+      && mpuWrite(0x19, 0x00)        /* SMPLRT_DIV: 1 kHz */
+      && mpuWrite(0x1B, 0x10)        /* GYRO_CONFIG: +/-1000 dps */
+      && mpuWrite(0x1C, 0x08);       /* ACCEL_CONFIG: +/-4 g */
+}
+
+static bool mpuBegin() {
+  g_sda = (uint32_t)digitalPinToPinName(A4);
+  g_scl = (uint32_t)digitalPinToPinName(A5);
+  i2cPinInit(g_sda);
+  i2cPinInit(g_scl);
+  i2cRecover();
+  const uint8_t addrs[2] = { 0x68, 0x69 };
+  for (uint8_t a = 0; a < 2; a++) {
+    g_mpuAddr = addrs[a];
+    uint8_t who = 0;
+    /* Any answer counts: clones report 0x70, 0x72 or 0x98 instead of 0x68,
+     * and refusing them would turn a working sensor into "no IMU". */
+    if (!mpuRead(0x75, &who, 1) || who == 0x00 || who == 0xFF) continue;
+    g_mpuWho = who;
+    if (!mpuWrite(0x6B, 0x80)) continue;      /* PWR_MGMT_1: reset */
+    delay(100);
+    if (!mpuConfigure()) continue;
+    delay(20);
+    uint8_t probe[14];
+    if (mpuRead(0x3B, probe, 14)) return true;
+  }
+  return false;
+}
 #endif
 
 /*
@@ -153,7 +353,7 @@ static const char *IMU_COLS[6] = { "ax", "ay", "az", "gx", "gy", "gz" };
 
 /* ---------- configuration ------------------------------------------------ */
 
-#define FW_VERSION      "0.9.0"
+#define FW_VERSION      "0.11.1"
 /*
  * Frame layout is unchanged from proto 1 by the move to 12-bit: only the value
  * scale moved, and the banner's adc_bits already tells the host about that. So
@@ -214,7 +414,7 @@ static const uint8_t MUX_SEL_PINS[4] = { 2, 3, 4, 5 };
 
 struct AnalogChannel {
   const char *name;   /* protocol column name */
-  const char *kind;   /* "fsr" | "flex" - which curve the host should apply */
+  const char *kind;   /* "fsr" | "flex" | "flexiforce" - which curve the host applies */
   uint8_t     pin;    /* analog pin (mux common pin if muxCh >= 0) */
   int8_t      muxCh;  /* -1 = wired directly, else CD74HC4067 channel */
   uint32_t    rFixed; /* this channel's own low-side resistor, ohms */
@@ -230,11 +430,17 @@ struct AnalogChannel {
  * flex strip. Mislabel a channel here and the dev page will print confident
  * newtons for a bending finger.
  *
- * PIN LAYOUT (fw 0.9.0): the three FSR pads wired directly to A1-A3, thumb ->
- * middle, and the four flex strips through the CD74HC4067 on C0-C3, thumb ->
- * ring, read on the mux SIG pin (A0) with the select lines on D2-D5. The mux
+ * PIN LAYOUT (fw 0.10.0): four FSR pads wired directly, thumb -> ring, on A1,
+ * A2, A3 and A6 (A4/A5 carry the MPU6050's I2C), and the five flex strips
+ * through the CD74HC4067 on C0-C4 (index on C3 and ring on C1, as wired),
+ * thumb -> pinky, read on the mux SIG pin
+ * (A0) with the select lines on D2-D5. The mux
  * is powered from 3V3 with EN tied to GND. Each strip keeps its own 47k to GND
  * on its channel side, so the divider is the same as when it was direct.
+ * fw 0.11.1 adds the first palm FlexiForce A401 (h0, thenar) on mux C15 as a
+ * PLAIN DIVIDER with 47k to GND, not yet the op-amp stage of GRIP_TEST_PLAN.md
+ * section 0.3. Its kind is "flexiforce" so the host never pushes it through the
+ * FSR402 curve; it reads as resistance and conductance until calibrated.
  * Nothing enforces a layout either way, because
  * every channel names its own pin in the table below and the host reads the
  * layout from the boot banner - the convention is a habit for wiring, not a
@@ -266,10 +472,13 @@ static const AnalogChannel CHANNELS[] = {
   { "p0", "fsr",  A1,      -1, 10000 },   /* thumb tip  */
   { "p1", "fsr",  A2,      -1, 10000 },   /* index tip  */
   { "p2", "fsr",  A3,      -1, 10000 },   /* middle tip */
+  { "p3", "fsr",  A6,      -1, 10000 },   /* ring tip   */
   { "f0", "flex", MUX_SIG,  0, 47000 },   /* thumb  - mux C0 */
-  { "f1", "flex", MUX_SIG,  1, 47000 },   /* index  - mux C1 */
+  { "f1", "flex", MUX_SIG,  3, 47000 },   /* index  - mux C3 (wired crossed with ring) */
   { "f2", "flex", MUX_SIG,  2, 47000 },   /* middle - mux C2 */
-  { "f3", "flex", MUX_SIG,  3, 47000 },   /* ring   - mux C3 */
+  { "f3", "flex", MUX_SIG,  1, 47000 },   /* ring   - mux C1 (wired crossed with index) */
+  { "f4", "flex", MUX_SIG,  4, 47000 },   /* pinky  - mux C4 */
+  { "h0", "flexiforce", MUX_SIG, 15, 47000 },  /* thenar A401 - mux C15, plain divider */
 };
 static const uint8_t N_CHANNELS = sizeof(CHANNELS) / sizeof(CHANNELS[0]);
 
@@ -312,6 +521,50 @@ static uint16_t g_tSampleMax = 0, g_tImuMax = 0, g_tTxMax = 0;
 static bool    g_imuOk   = false;
 static int32_t g_imu[6]  = {0, 0, 0, 0, 0, 0};   /* ax..az mg, gx..gz mdps */
 static uint32_t g_imuHeld = 0;   /* frames that reused the previous sample */
+
+/* ---------- reset reason -------------------------------------------------- */
+/*
+ * Why this boot happened, published in the banner as `rst=`. It exists for the
+ * freezes of 2026-11-08: a board that froze and then came back on its own
+ * could have browned out (a pinched supply wire), crashed, or been reset by
+ * hand, and nothing on the wire told them apart.
+ *
+ * nRF52840 RESETREAS bits, joined with '+'. `por` means no bit was set, which
+ * on this chip is a power-on OR a brown-out - it records neither. The register
+ * is cleared after reading so the next boot reports only its own cause.
+ *
+ * UNVERIFIED: whether the bootloader, which runs first, leaves the register
+ * alone. Check once: press the reset button, reconnect, and the banner should
+ * say rst=pin. If it says por, the bootloader cleared it and this field
+ * carries no information.
+ */
+static char g_rst[48] = "unknown";
+
+static void readResetReason() {
+#if defined(NRF52840_XXAA)
+  const uint32_t r = NRF_POWER->RESETREAS;
+  NRF_POWER->RESETREAS = 0xFFFFFFFFUL;          /* write-1-to-clear */
+  static const struct { uint32_t mask; const char *name; } BITS[] = {
+    { POWER_RESETREAS_RESETPIN_Msk, "pin"    },
+    { POWER_RESETREAS_DOG_Msk,      "dog"    },
+    { POWER_RESETREAS_SREQ_Msk,     "sreq"   },
+    { POWER_RESETREAS_LOCKUP_Msk,   "lockup" },
+    { POWER_RESETREAS_OFF_Msk,      "off"    },
+    { POWER_RESETREAS_LPCOMP_Msk,   "lpcomp" },
+    { POWER_RESETREAS_DIF_Msk,      "dif"    },
+    { POWER_RESETREAS_NFC_Msk,      "nfc"    },
+    { POWER_RESETREAS_VBUS_Msk,     "vbus"   },
+  };
+  size_t n = 0;
+  g_rst[0] = '\0';
+  for (uint8_t i = 0; i < sizeof(BITS) / sizeof(BITS[0]); i++) {
+    if (!(r & BITS[i].mask)) continue;
+    n += snprintf(g_rst + n, sizeof(g_rst) - n, "%s%s", n ? "+" : "", BITS[i].name);
+    if (n >= sizeof(g_rst)) break;
+  }
+  if (!n) snprintf(g_rst, sizeof(g_rst), "por");
+#endif
+}
 
 /* ---------- acquisition -------------------------------------------------- */
 
@@ -360,7 +613,28 @@ static void sampleAll() {
  * directly by looking for identical consecutive triples.
  */
 static void sampleImu() {
-#if HAS_IMU
+#if defined(GLOVE_IMU_MPU6050)
+  if (!g_imuOk) return;
+  uint8_t b[14];
+  /* A failed burst (loose wire) holds the last sample and counts it, the same
+   * as an onboard IMU with nothing new - never a frame of zeroes. */
+  if (!mpuRead(0x3B, b, 14)) {
+    g_imuHeld++;
+    g_mpuFails++;
+    /* Once a second of failures in a row, try to bring the bus and the chip
+     * back (unstick SDA, re-write the config). Costs well under 1 ms. */
+    if (++g_mpuFailRun % 100 == 0) { i2cRecover(); mpuConfigure(); }
+    return;
+  }
+  g_mpuFailRun = 0;
+  for (uint8_t k = 0; k < 3; k++) {
+    const int16_t a = (int16_t)((b[2 * k] << 8) | b[2 * k + 1]);
+    const int16_t g = (int16_t)((b[8 + 2 * k] << 8) | b[9 + 2 * k]);
+    /* LSB -> milli-g (8192 LSB/g) and milli-dps (32.8 LSB/dps). */
+    g_imu[k]     = (int32_t)lroundf((float)a * IMU_SCALE / 8192.0f);
+    g_imu[3 + k] = (int32_t)lroundf((float)g * IMU_SCALE / 32.8f);
+  }
+#elif HAS_IMU
   if (!g_imuOk) return;
   bool fresh = false;
   float x, y, z;
@@ -399,39 +673,300 @@ static int32_t sensorOhms(uint16_t adc, uint32_t rFixed) {
   return ((int32_t)rFixed * (int32_t)(VDIV_SUPPLY_MV - mv)) / mv;
 }
 
+/* ---------- transmit path ------------------------------------------------ */
+/*
+ * NOTHING IN THIS SKETCH MAY WAIT ON THE HOST. Every byte goes through TX_RING,
+ * and loop() moves it to USB without ever blocking. Do not call Serial.print()
+ * or Serial.write() anywhere else.
+ *
+ * Why, read from the installed core 2026-11-09 (mbed_nano 4.6.0,
+ * cores/arduino/USB): Serial.write() forwards to _SerialUSB and ends in
+ * USBCDC::send(), which waits with NO timeout (write_op.wait(NULL)) until the
+ * PC reads the data or drops DTR.
+ * availableForWrite() is not overridden there, so it returns 0 and cannot warn
+ * first. Up to fw 0.10.2 a PC that held the port open but stopped reading - a
+ * hub whose reader thread had died, a script that slept - stopped the sampler
+ * AND the command parser with it, which is exactly what a frozen board looks
+ * like. The 2026-11-08 bench lines already showed single frames stuck 27 ms
+ * and 41 ms in tx= while a script was not reading.
+ *
+ * Now: whole lines are queued (a full ring drops the line - frames count in
+ * g_missed, text in g_txDrop - never part of one), and txPump() hands USB at
+ * most one packet per call with send_nb(), which copies only when the
+ * endpoint is idle and returns at once. The ring is emptied whenever the host
+ * goes away, so a new connection starts on a line boundary, not on the tail of
+ * stale frames.
+ *
+ * Sizing: a frame is ~110 bytes, the 'D' burst ~800 every 200 ms, and USB
+ * drains far faster than either, so 4 KB only fills when the PC stops reading
+ * - which is the case it is for.
+ */
+static const uint32_t TX_RING = 4096;          /* power of two */
+/* Room frames may not use, so a reply to a command (the banner, #ZERO) still
+ * fits when a PC that stopped reading has let frames fill the rest. Measured
+ * 2026-11-09 on the first 0.10.3 build: after 4 s unread, '?' was handled but
+ * its banner was dropped (txdrop=1) behind a full queue of stale frames.
+ * 768 holds the banner (~400 bytes) with room to spare. */
+static const uint32_t TX_TEXT_RESERVE = 768;
+static uint32_t g_txDrop = 0;                  /* text lines dropped since 'Z' */
+
+/* One transmit queue. A class with its methods inside, not free functions
+ * taking a struct: Arduino generates prototypes for free functions and can
+ * place them above the type they name. Head and tail run free; queued is
+ * head - tail. Used twice: USB and (on the Nano 33 BLE) Bluetooth. */
+class TxRing {
+ public:
+  uint32_t queued() const { return head_ - tail_; }
+  /* Queue all n bytes or none; `keep` is room that must stay free after. */
+  bool put(const uint8_t *p, uint32_t n, uint32_t keep) {
+    if (n + keep > TX_RING - queued()) return false;
+    for (uint32_t i = 0; i < n; i++) buf_[(head_ + i) & (TX_RING - 1)] = p[i];
+    head_ += n;
+    return true;
+  }
+  /* The contiguous run at the tail, up to the wrap. */
+  const uint8_t *peek(uint32_t *n) const {
+    const uint32_t off = tail_ & (TX_RING - 1);
+    uint32_t run = queued();
+    if (run > TX_RING - off) run = TX_RING - off;
+    *n = run;
+    return &buf_[off];
+  }
+  void take(uint32_t n) { tail_ += n; }
+  void clear() { tail_ = head_; }
+ private:
+  uint8_t  buf_[TX_RING];
+  uint32_t head_ = 0, tail_ = 0;
+};
+static TxRing g_usbTx;
+
+/* ---------- Bluetooth LE -------------------------------------------------- */
+/*
+ * The cordless link, for a glove on battery. Nano 33 BLE only (the nRF52840's
+ * own radio, through ArduinoBLE); an AVR build has no radio and compiles
+ * without it.
+ *
+ * SERVICE: the Nordic UART Service, so a generic tool (nRF Connect) can also
+ * see it. RX (6E400002, write) takes the same one-letter commands as USB. TX
+ * (6E400003, notify) is a byte stream cut into notifications of up to MTU-3
+ * bytes; a record can straddle two notifications, so the host reassembles the
+ * stream rather than treating a notification as a unit.
+ *
+ * STREAM: text lines exactly as on USB (banner, #ZERO, #DIAG, '!' lines),
+ * EXCEPT data frames, which are binary records - half the bytes of the text
+ * line, which matters on a link this narrow:
+ *     0x01, len, seq u32, t_us u32, each analog u16, each IMU column i32
+ * little-endian, `len` counting the bytes after itself. 0x01 never occurs in
+ * the text, so it marks a record unambiguously, and `len` lets the host skip
+ * a record it cannot decode yet (no banner). Column order and kinds are the
+ * banner's, as on USB. The host turns each record back into the same
+ * "G,..." line, so everything above the transport is unchanged.
+ *
+ * NOTHING HERE MAY WAIT EITHER. ArduinoBLE's notify ends in
+ * HCIClass::sendAclPkt(), which spins in poll() until the controller has a
+ * free packet buffer (ArduinoBLE 2.1.0, utility/HCI.cpp) - on a weak link
+ * that is the sampler stalled, the same failure the USB path was rebuilt to
+ * avoid. So the pump checks the controller's free buffers first and sends
+ * only when one is free; otherwise the bytes wait in the ring, and a full
+ * ring drops whole frames, counted in `missed` as on USB. The counters it
+ * needs (HCI._pendingPkt/_maxPkt) and the negotiated MTU (ATT._peers) are
+ * private in the library, hence the `#define private public` around those two
+ * headers. If an ArduinoBLE update renames them this fails to compile, loudly,
+ * rather than quietly blocking.
+ */
+#if defined(ARDUINO_ARCH_MBED) && defined(NRF52840_XXAA)
+  #define GLOVE_BLE 1
+#else
+  #define GLOVE_BLE 0
+#endif
+
+#if GLOVE_BLE
+#include <ArduinoBLE.h>
+#define private public
+#include <utility/HCI.h>
+#include <utility/ATT.h>
+#undef private
+
+#define BLE_NAME "Hand3D Glove"
+static const char *NUS_SERVICE = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+static const char *NUS_RX      = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
+static const char *NUS_TX      = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
+/* Largest notification value. The controller's ACL buffer caps the MTU near
+ * this anyway (ATT.setMaxMtu(pktLen - 9)); the live MTU is read per send. */
+static const uint16_t BLE_VALUE_MAX = 244;
+/* A part-filled notification waits at most this long for more bytes. ~200
+ * bytes of records accumulate in 40 ms, so most notifications go nearly full
+ * at ~25 a second, well inside what the link carries. */
+static const uint32_t BLE_FLUSH_MS = 40;
+/* Notifications handed over per pump call, at most. */
+static const uint8_t BLE_PUMP_BURST = 4;
+static const uint8_t BLE_REC_MARK = 0x01;
+
+static BLEService        g_bleService(NUS_SERVICE);
+static BLECharacteristic g_bleRx(NUS_RX, BLEWrite | BLEWriteWithoutResponse, 20);
+static BLECharacteristic g_bleTxChar(NUS_TX, BLENotify, BLE_VALUE_MAX);
+static TxRing   g_bleTx;
+static bool     g_bleOk = false;       /* radio came up */
+static bool     g_bleLinked = false;   /* a central is connected AND subscribed */
+static uint32_t g_bleLastSendMs = 0;
+static uint32_t g_bleNotes = 0;        /* notifications sent since 'Z' */
+static uint32_t g_bleWaits = 0;        /* pumps that found no free buffer since 'Z' */
+
+/* The negotiated ATT MTU of the connected central, 23 until it asks for more. */
+static uint16_t bleMtu() {
+  for (int i = 0; i < ATT_MAX_PEERS; i++) {
+    if (ATT._peers[i].connectionHandle != 0xffff) return ATT._peers[i].mtu;
+  }
+  return 23;
+}
+
+/* Refreshed once per loop pass. ATT.connected(), not BLE.connected(): the
+ * latter runs a full HCI poll on every call. */
+static void bleRefreshLink() {
+  const bool was = g_bleLinked;
+  g_bleLinked = g_bleOk && ATT.connected() && g_bleTxChar.subscribed();
+  /* A new subscriber starts on a record boundary, not mid-way through stale
+   * frames queued for the last one. */
+  if (!was || !g_bleLinked) g_bleTx.clear();
+}
+
+static void blePump() {
+  if (!g_bleLinked) return;
+  uint16_t payload = bleMtu() - 3;
+  if (payload > BLE_VALUE_MAX) payload = BLE_VALUE_MAX;
+  const uint32_t now = millis();
+  for (uint8_t k = 0; k < BLE_PUMP_BURST; k++) {
+    const uint32_t q = g_bleTx.queued();
+    if (!q) return;
+    if (q < payload && now - g_bleLastSendMs < BLE_FLUSH_MS) return;
+    if (HCI._pendingPkt >= HCI._maxPkt) { g_bleWaits++; return; }
+    uint32_t n;
+    const uint8_t *p = g_bleTx.peek(&n);
+    if (n > payload) n = payload;
+    g_bleTxChar.writeValue(p, (int)n);
+    g_bleTx.take(n);
+    g_bleLastSendMs = now;
+    g_bleNotes++;
+  }
+}
+
+static void bleCommands();   /* after handleCommand(), below */
+#endif
+
+/* On the mbed core `Serial` is a UART wrapper that forwards to the real USB
+ * object, _SerialUSB (arduino::USBSerial, a USBCDC). The non-blocking calls
+ * live only on the latter, so the transmit path talks to it directly. */
+#if defined(ARDUINO_ARCH_MBED) && defined(SERIAL_CDC)
+  #include <USB/PluggableUSBSerial.h>
+  #define GLOVE_USB_CDC 1
+#endif
+
+/* Is a terminal attached (DTR up)? NOT `(bool)Serial`: on this core that
+ * operator calls delay(1), which cost 1 ms of every 10 ms frame. */
+static inline bool hostConnected() {
+#if defined(GLOVE_USB_CDC)
+  return _SerialUSB.connected();
+#else
+  return (bool)Serial;
+#endif
+}
+
+/* Hand USB at most one packet. 63 bytes, not 64: a full-size packet leaves
+ * the PC waiting for a following short one before it passes the data up. */
+static void txPump() {
+  if (!hostConnected()) { g_usbTx.clear(); return; }
+  uint32_t n;
+  uint8_t *p = (uint8_t *)g_usbTx.peek(&n);   /* up to the wrap; the rest next call */
+  if (!n) return;
+  if (n > 63) n = 63;
+#if defined(GLOVE_USB_CDC)
+  uint32_t sent = 0;
+  _SerialUSB.send_nb(p, n, &sent, true);
+#else
+  const int room = Serial.availableForWrite();
+  if (room <= 0) return;
+  if ((uint32_t)room < n) n = (uint32_t)room;
+  const uint32_t sent = (uint32_t)Serial.write(p, n);
+#endif
+  g_usbTx.take(sent);
+}
+
+/* A Print that collects one line and queues it whole when the newline comes,
+ * so the banner and the diagnostics keep their print() style and still can
+ * neither block nor reach the PC half-written. */
+class TxLine : public Print {
+ public:
+  size_t write(uint8_t c) override {
+    if (n_ < sizeof(buf_)) buf_[n_++] = c; else over_ = true;
+    if (c == '\n') commit();
+    return 1;
+  }
+  using Print::write;
+ private:
+  /* To every transport that is listening; a line any of them could not take
+   * counts once. */
+  void commit() {
+    bool lost = over_;
+    if (!over_) {
+      if (hostConnected() && !g_usbTx.put(buf_, (uint32_t)n_, 0)) lost = true;
+#if GLOVE_BLE
+      if (g_bleLinked && !g_bleTx.put(buf_, (uint32_t)n_, 0)) lost = true;
+#endif
+    }
+    if (lost) g_txDrop++;
+    n_ = 0;
+    over_ = false;
+  }
+  /* The banner is the longest line: ~400 bytes today, ~470 at the full
+   * eleven analog channels. */
+  uint8_t buf_[640];
+  size_t  n_ = 0;
+  bool    over_ = false;
+};
+static TxLine Out;
+
 /* ---------- output ------------------------------------------------------- */
 
 static void emitBanner() {
-  Serial.print(F("#GLOVE fw=" FW_VERSION " proto="));
-  Serial.print(PROTO_VERSION);
-  Serial.print(F(" board=" GLOVE_BOARD " rate="));
-  Serial.print(SAMPLE_RATE_HZ);
-  Serial.print(F(" adc_bits="));
-  Serial.print(ADC_BITS);
-  Serial.print(F(" adc_ref_mv="));
-  Serial.print(ADC_FULLSCALE_MV);
-  Serial.print(F(" vdiv_mv="));
-  Serial.print(VDIV_SUPPLY_MV);
-  Serial.print(F(" r_fixed="));
-  Serial.print(R_FIXED_DEFAULT_OHMS);
+  Out.print(F("#GLOVE fw=" FW_VERSION " proto="));
+  Out.print(PROTO_VERSION);
+  Out.print(F(" board=" GLOVE_BOARD " rate="));
+  Out.print(SAMPLE_RATE_HZ);
+  Out.print(F(" adc_bits="));
+  Out.print(ADC_BITS);
+  Out.print(F(" adc_ref_mv="));
+  Out.print(ADC_FULLSCALE_MV);
+  Out.print(F(" vdiv_mv="));
+  Out.print(VDIV_SUPPLY_MV);
+  Out.print(F(" r_fixed="));
+  Out.print(R_FIXED_DEFAULT_OHMS);
   /* imu= is the compiled-in library name ONLY if the chip actually answered.
    * A library that is installed but silent must read as none, or the host
    * will expect six columns that never arrive. */
-  Serial.print(F(" imu="));
-  Serial.print(g_imuOk ? IMU_LIB_NAME : "none");
+  Out.print(F(" imu="));
+  Out.print(g_imuOk ? IMU_LIB_NAME : "none");
   if (g_imuOk) {
-    Serial.print(F(" imu_scale="));
-    Serial.print(IMU_SCALE);
+    Out.print(F(" imu_scale="));
+    Out.print(IMU_SCALE);
   }
-  Serial.print(F(" emg=0 cols=seq,t_us"));
+  /* Additive, like chan= below: hosts that predate it ignore the key. */
+  Out.print(F(" rst="));
+  Out.print(g_rst);
+#if GLOVE_BLE
+  /* Whether the radio is up, so a USB host can tell a board that can go
+   * cordless from one whose radio failed to start. */
+  Out.print(F(" ble="));
+  Out.print(g_bleOk ? 1 : 0);
+#endif
+  Out.print(F(" emg=0 cols=seq,t_us"));
   for (uint8_t i = 0; i < N_CHANNELS; i++) {
-    Serial.print(',');
-    Serial.print(CHANNELS[i].name);
+    Out.print(',');
+    Out.print(CHANNELS[i].name);
   }
   if (g_imuOk) {
     for (uint8_t i = 0; i < 6; i++) {
-      Serial.print(',');
-      Serial.print(IMU_COLS[i]);
+      Out.print(',');
+      Out.print(IMU_COLS[i]);
     }
   }
   /*
@@ -441,26 +976,26 @@ static void emitBanner() {
    * recordings still read. A host that does not understand `chan` falls back
    * to r_fixed above and to the f./p. naming convention for kind.
    */
-  Serial.print(F(" chan="));
+  Out.print(F(" chan="));
   for (uint8_t i = 0; i < N_CHANNELS; i++) {
-    if (i) Serial.print(',');
-    Serial.print(CHANNELS[i].name);
-    Serial.print(':');
-    Serial.print(CHANNELS[i].kind);
-    Serial.print(':');
-    Serial.print(CHANNELS[i].rFixed);
+    if (i) Out.print(',');
+    Out.print(CHANNELS[i].name);
+    Out.print(':');
+    Out.print(CHANNELS[i].kind);
+    Out.print(':');
+    Out.print(CHANNELS[i].rFixed);
   }
   /* IMU entries carry a kind but NO third field: there is no low-side
    * resistor on an accelerometer, and putting the scale in that slot would
    * invite a host to read it as ohms. The scale is a separate banner key. */
   if (g_imuOk) {
     for (uint8_t i = 0; i < 6; i++) {
-      Serial.print(',');   /* CHANNELS[] is never empty, so a comma always leads */
-      Serial.print(IMU_COLS[i]);
-      Serial.print(i < 3 ? ":accel" : ":gyro");
+      Out.print(',');   /* CHANNELS[] is never empty, so a comma always leads */
+      Out.print(IMU_COLS[i]);
+      Out.print(i < 3 ? ":accel" : ":gyro");
     }
   }
-  Serial.println();
+  Out.println();
 }
 
 /*
@@ -472,33 +1007,49 @@ static char g_line[192];
 
 static void emitFrame() {
   /*
-   * Native USB CDC blocks when the host is not draining the port, which would
-   * stall the sampler and corrupt the timeline every temporal metric depends
-   * on. Drop the frame instead - the seq gap makes the loss auditable on the
-   * host, whereas a stalled sampler is invisible.
+   * No host, or no room in the ring: drop the frame and count it. The seq gap
+   * makes the loss auditable on the host, whereas a stalled sampler is
+   * invisible (see the transmit path above).
    */
-  /* seq + t_us + analog counts + (when fitted) six signed milli-unit fields,
-   * the widest of which is a gyro reading at +/-2000000. */
-  const int NEEDED = 12 + 12 + (N_CHANNELS * 6) + (g_imuOk ? 6 * 9 : 0);
-  if (!Serial) {
+  const bool usb = hostConnected();
+#if GLOVE_BLE
+  const bool ble = g_bleLinked;
+#else
+  const bool ble = false;
+#endif
+  if (!usb && !ble) {
     g_missed++;
     return;
   }
-  /*
-   * Print::availableForWrite() is a virtual that DEFAULTS TO 0 on cores which
-   * do not override it - the Nano 33 BLE's USB CDC is one of them. Treating 0
-   * as "no room" silently drops every frame, so only honour this reading when
-   * it reports an actual capacity.
-   */
-  const int room = Serial.availableForWrite();
-  if (room > 0 && room < NEEDED) {
-    g_missed++;
+  /* One timestamp for both transports, so the two never disagree. */
+  const uint32_t tUs = micros() - g_epochUs;
+  bool lost = false;
+
+#if GLOVE_BLE
+  if (ble) {
+    /* The binary record (see "Bluetooth LE"). Little-endian, as the nRF52840
+     * is, so memcpy lays the fields down in wire order. */
+    uint8_t rec[2 + 8 + 2 * N_CHANNELS + 4 * 6];
+    uint8_t k = 2;
+    memcpy(&rec[k], &g_seq, 4); k += 4;
+    memcpy(&rec[k], &tUs, 4);   k += 4;
+    for (uint8_t i = 0; i < N_CHANNELS; i++) { memcpy(&rec[k], &g_sample[i], 2); k += 2; }
+    if (g_imuOk) {
+      for (uint8_t i = 0; i < 6; i++) { memcpy(&rec[k], &g_imu[i], 4); k += 4; }
+    }
+    rec[0] = BLE_REC_MARK;
+    rec[1] = (uint8_t)(k - 2);
+    if (!g_bleTx.put(rec, k, TX_TEXT_RESERVE)) lost = true;
+  }
+#endif
+  if (!usb) {
+    if (lost) g_missed++;
     return;
   }
 
   /*
-   * FORMAT THE WHOLE FRAME, THEN WRITE IT ONCE. Do not go back to a
-   * Serial.print() per field.
+   * FORMAT THE WHOLE FRAME, THEN QUEUE IT ONCE. Do not go back to a
+   * print() per field.
    *
    * The mbed core's USB CDC (PluggableUSBSerial.h) implements the single-byte
    * write(uint8_t) as a _putc straight onto the endpoint, while the block
@@ -516,10 +1067,14 @@ static void emitFrame() {
    * and the cost was NOT where it looked. It is why the 'D' diagnostics now
    * time each phase, and why the rate is a measured gate (plan section 6)
    * rather than an assumption.
+   *
+   * Since fw 0.10.3 the line goes to TX_RING rather than to Serial, and
+   * txPump() packs it into USB packets of up to 63 bytes - the same
+   * packet-at-a-time cost as the block write above, without the wait.
    */
   int n = snprintf(g_line, sizeof(g_line), "G,%lu,%lu",
                    (unsigned long)g_seq,
-                   (unsigned long)(micros() - g_epochUs));
+                   (unsigned long)tUs);
   for (uint8_t i = 0; i < N_CHANNELS; i++) {
     if (n < 0 || n >= (int)sizeof(g_line)) break;
     n += snprintf(g_line + n, sizeof(g_line) - n, ",%u",
@@ -542,53 +1097,91 @@ static void emitFrame() {
    * line splitting and the recorded CSVs both already expect it. */
   g_line[n++] = '\r';
   g_line[n++] = '\n';
-  Serial.write((const uint8_t *)g_line, (size_t)n);
+  if (!g_usbTx.put((const uint8_t *)g_line, (uint32_t)n, TX_TEXT_RESERVE)) lost = true;
+  /* A frame lost on either transport counts once. */
+  if (lost) g_missed++;
 }
 
 static void emitDiag() {
   for (uint8_t i = 0; i < N_CHANNELS; i++) {
-    Serial.print(F("#DIAG "));
-    Serial.print(CHANNELS[i].name);
-    Serial.print(F(" adc="));
-    Serial.print(g_sample[i]);
-    Serial.print(F(" mv="));
-    Serial.print(adcToMillivolts(g_sample[i]));
-    Serial.print(F(" ohm="));
-    Serial.print(sensorOhms(g_sample[i], CHANNELS[i].rFixed));
-    Serial.print(F(" min="));
-    Serial.print(g_min[i]);
-    Serial.print(F(" max="));
-    Serial.print(g_max[i]);
-    Serial.print(F(" missed="));
-    Serial.println(g_missed);
+    Out.print(F("#DIAG "));
+    Out.print(CHANNELS[i].name);
+    Out.print(F(" adc="));
+    Out.print(g_sample[i]);
+    Out.print(F(" mv="));
+    Out.print(adcToMillivolts(g_sample[i]));
+    Out.print(F(" ohm="));
+    Out.print(sensorOhms(g_sample[i], CHANNELS[i].rFixed));
+    Out.print(F(" min="));
+    Out.print(g_min[i]);
+    Out.print(F(" max="));
+    Out.print(g_max[i]);
+    Out.print(F(" missed="));
+    Out.println(g_missed);
   }
-  Serial.print(F("#DIAG timing us sample="));
-  Serial.print(g_tSample);
-  Serial.print('/');
-  Serial.print(g_tSampleMax);
-  Serial.print(F(" imu="));
-  Serial.print(g_tImu);
-  Serial.print('/');
-  Serial.print(g_tImuMax);
-  Serial.print(F(" tx="));
-  Serial.print(g_tTx);
-  Serial.print('/');
-  Serial.print(g_tTxMax);
-  Serial.println(F("  (last/max since Z; budget is 10000)"));
+  /* tx= is formatting and queueing only since fw 0.10.3; the USB transfer
+   * itself happens in txPump() and never waits. txq= is what is still queued
+   * (it climbs toward 4096 only while the PC is not reading) and txdrop= the
+   * text lines lost to a full queue. */
+  Out.print(F("#DIAG timing us sample="));
+  Out.print(g_tSample);
+  Out.print('/');
+  Out.print(g_tSampleMax);
+  Out.print(F(" imu="));
+  Out.print(g_tImu);
+  Out.print('/');
+  Out.print(g_tImuMax);
+  Out.print(F(" tx="));
+  Out.print(g_tTx);
+  Out.print('/');
+  Out.print(g_tTxMax);
+  Out.print(F(" txq="));
+  Out.print(g_usbTx.queued());
+  Out.print(F(" txdrop="));
+  Out.print(g_txDrop);
+  Out.println(F("  (last/max since Z; budget is 10000)"));
+#if GLOVE_BLE
+  /* The radio link: whether a central is subscribed, its MTU, what is still
+   * queued for it, notifications sent, and pumps that found the controller's
+   * buffers full (a climbing count means the link is narrower than the
+   * stream - move closer, or expect missed= to follow). */
+  Out.print(F("#DIAG ble up="));
+  Out.print(g_bleOk ? 1 : 0);
+  Out.print(F(" linked="));
+  Out.print(g_bleLinked ? 1 : 0);
+  Out.print(F(" mtu="));
+  Out.print(g_bleLinked ? bleMtu() : 0);
+  Out.print(F(" q="));
+  Out.print(g_bleTx.queued());
+  Out.print(F(" notes="));
+  Out.print(g_bleNotes);
+  Out.print(F(" waits="));
+  Out.println(g_bleWaits);
+#endif
   if (g_imuOk) {
-    Serial.print(F("#DIAG imu mg="));
-    Serial.print(g_imu[0]); Serial.print(',');
-    Serial.print(g_imu[1]); Serial.print(',');
-    Serial.print(g_imu[2]);
-    Serial.print(F(" mdps="));
-    Serial.print(g_imu[3]); Serial.print(',');
-    Serial.print(g_imu[4]); Serial.print(',');
-    Serial.print(g_imu[5]);
+    Out.print(F("#DIAG imu mg="));
+    Out.print(g_imu[0]); Out.print(',');
+    Out.print(g_imu[1]); Out.print(',');
+    Out.print(g_imu[2]);
+    Out.print(F(" mdps="));
+    Out.print(g_imu[3]); Out.print(',');
+    Out.print(g_imu[4]); Out.print(',');
+    Out.print(g_imu[5]);
     /* Held frames reused the previous sample because the IMU's own output
      * rate had nothing new. High counts mean the effective IMU rate is below
      * the frame rate, which matters for anything spectral. */
-    Serial.print(F(" held="));
-    Serial.println(g_imuHeld);
+    Out.print(F(" held="));
+#if defined(GLOVE_IMU_MPU6050)
+    Out.print(g_imuHeld);
+    Out.print(F(" who=0x"));
+    Out.print(g_mpuWho, HEX);
+    Out.print(F(" addr=0x"));
+    Out.print(g_mpuAddr, HEX);
+    Out.print(F(" i2c_fail="));
+    Out.println(g_mpuFails);
+#else
+    Out.println(g_imuHeld);
+#endif
   }
 }
 
@@ -614,20 +1207,59 @@ static void handleCommand(char c) {
       g_epochUs = micros();
       g_missed  = 0;
       g_imuHeld = 0;
+#if defined(GLOVE_IMU_MPU6050)
+      g_mpuFails = 0;
+#endif
+      g_txDrop  = 0;
+#if GLOVE_BLE
+      g_bleNotes = 0;
+      g_bleWaits = 0;
+#endif
       g_tSampleMax = g_tImuMax = g_tTxMax = 0;
       resetSpans();
-      Serial.println(F("#ZERO"));
+      Out.println(F("#ZERO"));
       break;
     default:  /* ignore newlines and stray bytes */ break;
   }
 }
 
+#if GLOVE_BLE
+/* Commands written to the RX characteristic, one letter per byte, exactly as
+ * on USB. A reply (the banner, #ZERO) goes to every listening transport.
+ *
+ * QUEUED FROM A WRITE HANDLER, NOT READ WITH written(). The characteristic
+ * holds only its latest value, and the hub sends "?" then "S" back to back:
+ * both land in one BLE.poll(), and polling written() afterwards saw only the
+ * "S" - measured on the first 0.11.0 build, where the banner never came over
+ * the air. The handler runs once per write, inside poll(), so it only
+ * queues; loop() runs the commands after the link state is refreshed, so the
+ * banner a new subscriber asks for is not dropped as "nobody listening". */
+static char    g_bleCmd[32];
+static uint8_t g_bleCmdN = 0;
+
+/* A captureless lambda rather than a function: Arduino generates prototypes
+ * for free functions and put this one above the ArduinoBLE include. */
+static const BLECharacteristicEventHandler bleOnWrite = [](BLEDevice, BLECharacteristic ch) {
+  const uint8_t *v = ch.value();
+  const int n = ch.valueLength();
+  for (int i = 0; i < n && g_bleCmdN < sizeof(g_bleCmd); i++) g_bleCmd[g_bleCmdN++] = (char)v[i];
+};
+
+static void bleCommands() {
+  const uint8_t n = g_bleCmdN;
+  g_bleCmdN = 0;
+  for (uint8_t i = 0; i < n; i++) handleCommand(g_bleCmd[i]);
+}
+#endif
+
 /* ---------- lifecycle ---------------------------------------------------- */
 
 void setup() {
+  readResetReason();   /* first, before anything can reset the chip again */
   Serial.begin(115200);
   /* Bounded wait so the banner is not lost to a slow host, but the board
-   * still runs headless if nothing ever opens the port. */
+   * still runs headless if nothing ever opens the port. (Here, and only here,
+   * the delay(1) inside `!Serial` is wanted: it lets USB come up.) */
   while (!Serial && millis() < 3000) { }
 
 #if HAS_ADC_RESOLUTION
@@ -636,7 +1268,12 @@ void setup() {
 
   for (uint8_t i = 0; i < 4; i++) pinMode(MUX_SEL_PINS[i], OUTPUT);
 
-#if HAS_IMU
+#if defined(GLOVE_IMU_MPU6050)
+  g_imuOk = mpuBegin();
+  if (!g_imuOk) {
+    Out.println(F("!IMU MPU6050 not answering on A4/A5 (0x68/0x69) - no motion columns"));
+  }
+#elif HAS_IMU
   g_imuOk = IMU.begin();
   /* AFTER begin(), never before: the library calls _wire->begin() itself, and
    * on some cores that resets the clock to the default. */
@@ -644,7 +1281,27 @@ void setup() {
   if (!g_imuOk) {
     /* Say so loudly on the wire. Silence here is how "wrong library for this
      * board revision" hides for a week. */
-    Serial.println(F("!IMU " IMU_LIB_NAME " begin() failed - no motion columns"));
+    Out.println(F("!IMU " IMU_LIB_NAME " begin() failed - no motion columns"));
+  }
+#endif
+
+#if GLOVE_BLE
+  g_bleOk = BLE.begin();
+  if (g_bleOk) {
+    BLE.setLocalName(BLE_NAME);      /* goes in the scan response */
+    BLE.setDeviceName(BLE_NAME);
+    BLE.setAdvertisedService(g_bleService);
+    g_bleRx.setEventHandler(BLEWritten, bleOnWrite);
+    g_bleService.addCharacteristic(g_bleRx);
+    g_bleService.addCharacteristic(g_bleTxChar);
+    BLE.addService(g_bleService);
+    /* 7.5-15 ms, in 1.25 ms units. A request only: the PC decides, and
+     * Windows often settles on 15 or 30 ms, which still carries the stream
+     * because each event can carry several notifications. */
+    BLE.setConnectionInterval(6, 12);
+    BLE.advertise();
+  } else {
+    Out.println(F("!BLE radio did not start - USB only"));
   }
 #endif
 
@@ -657,6 +1314,17 @@ void setup() {
 
 void loop() {
   while (Serial.available()) handleCommand((char)Serial.read());
+#if GLOVE_BLE
+  if (g_bleOk) {
+    BLE.poll();          /* timeout 0: handles pending radio events, never waits */
+    bleRefreshLink();
+    bleCommands();
+    blePump();
+  }
+#endif
+  /* Every pass, including the idle spins between frames: that is what
+   * drains the ring. */
+  txPump();
 
   if ((int32_t)(micros() - g_nextDueUs) < 0) return;
 
@@ -679,6 +1347,7 @@ void loop() {
 
   if (g_streaming) emitFrame();
   const uint32_t tD = micros();
+  txPump();   /* start this frame's first packet now rather than next pass */
 
   g_tSample = (uint16_t)(tB - tA);
   g_tImu    = (uint16_t)(tC - tB);

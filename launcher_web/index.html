@@ -1353,40 +1353,79 @@ button,input{font:inherit;color:inherit}
         </div>
       </div>
 
-      <div class="section-head"><h2 data-i18n="dev.sec.toolchain">Toolchain</h2><div class="sh-line"></div>
-        <span class="cmp-legend" id="dev-env-note"></span></div>
-      <div class="dev-pills" id="dev-env"></div>
-      <div class="dev-warn" id="dev-env-warn" style="display:none"></div>
-      <div class="dev-actions" id="dev-tasks"></div>
-
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.conn">Connection</h2><div class="sh-line"></div></div>
-      <div class="dev-conn" id="dev-conn"></div>
-      <div class="dev-banner" id="dev-banner"></div>
-
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.signal">Live Signal</h2><div class="sh-line"></div>
-        <span class="cmp-legend" id="dev-scope-tools"></span></div>
-      <div class="dev-legend" id="dev-legend"></div>
-      <div class="dev-scope-wrap"><canvas id="dev-scope" aria-label="Live sensor trace" data-i18n-aria="dev.scope.aria"></canvas>
-        <div class="dev-scope-empty" id="dev-scope-empty" data-i18n="dev.scope.empty">Not connected &#8212; no signal.</div></div>
-      <div class="dev-chan-grid" id="dev-channels"></div>
-
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.map">Glove Map</h2><div class="sh-line"></div>
-        <span class="cmp-legend" data-i18n="dev.map.legend">fill = now &#183; ring = peak since Z &#183; faint = not fitted</span></div>
-      <p class="dev-note" data-i18n="dev.map.note">Every channel drawn where it sits on the hand. The layout is the decided
-        eleven-channel set &#8212; flex on the backs of four fingers, FSR402 on four fingertips, FlexiForce A401 on
-        three palm pads &#8212; and only the channels the board&#8217;s banner declares light up. Flex bends the finger
-        by its position within the recorded span, an illustration and not a joint angle. After
-        <em>Calibrate motion</em> the whole hand turns with yours, from the IMU. Drag to turn the view.
-        Layout: <code>docs/glove/GLOVE_EXPANSION_PLAN.md</code> &#167;4.</p>
-      <div class="g3d" id="g3d">
-        <div class="g3d-stage" id="g3d-stage">
-          <canvas id="g3d-canvas" aria-label="3D map of the glove's sensors" data-i18n-aria="dev.map.aria"></canvas>
-          <div class="g3d-tags" id="g3d-tags" aria-hidden="true"></div>
-          <div class="g3d-views" id="g3d-views"></div>
-          <div class="g3d-empty" id="g3d-empty"></div>
+      <!-- The glove card, laid out like an instrument panel: a printed label
+           column, then one content edge that every readout, key and opened
+           fold starts on. Static skeleton: dev.js fills the slots, and the
+           <details> are never rebuilt, so a poll cannot close one that is
+           open. data-state (off | on | sim) shows the connected-only rows. -->
+      <div class="section-head"><h2 data-i18n="dev.sec.glove">Glove</h2><div class="sh-line"></div></div>
+      <div class="dev-card" id="dev-card" data-state="off">
+        <div class="dev-line">
+          <div class="dev-line-head">
+            <span class="dev-line-lab" data-i18n="dev.line.conn">Connection</span>
+            <div class="dev-line-main">
+              <span class="dev-read" id="dev-conn-state"></span>
+              <span class="dev-meters" id="dev-conn-stats"></span>
+            </div>
+          </div>
+          <div class="dev-line-more dev-flags" id="dev-conn-flags"></div>
+          <div class="dev-line-more dev-keys">
+            <div class="dev-keys dev-live" id="dev-cmds"></div>
+            <div class="dev-keys" id="dev-conn"></div>
+          </div>
         </div>
-        <div class="g3d-list" id="g3d-list"></div>
+        <div class="dev-line dev-live">
+          <details class="dev-fold" id="dev-board">
+            <summary class="dev-line-head">
+              <span class="dev-line-lab" data-i18n="dev.line.board">Board</span>
+              <span class="dev-line-main dev-val" id="dev-board-meta"></span>
+            </summary>
+            <div class="dev-line-more">
+              <dl class="dev-spec" id="dev-banner"></dl>
+              <div class="dev-keys" id="dev-cmds-more"></div>
+            </div>
+          </details>
+        </div>
+        <div class="dev-line">
+          <details class="dev-fold" id="dev-tool">
+            <summary class="dev-line-head">
+              <span class="dev-line-lab" data-i18n="dev.line.tool">Toolchain</span>
+              <span class="dev-line-main" id="dev-env-sum"></span>
+            </summary>
+            <div class="dev-line-more">
+              <dl class="dev-spec dev-checklist" id="dev-env"></dl>
+              <div class="dev-keys" id="dev-tasks-more"></div>
+            </div>
+          </details>
+          <!-- Outside the fold: problems and firmware keys stay in view. -->
+          <div class="dev-line-more dev-fix" id="dev-env-fix"></div>
+          <div class="dev-line-more dev-keys" id="dev-tasks"></div>
+        </div>
       </div>
+
+      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.map">Glove Map</h2><div class="sh-line"></div></div>
+      <div class="g3d" id="g3d">
+        <div class="g3d-main">
+          <div class="g3d-stage" id="g3d-stage">
+            <canvas id="g3d-canvas" aria-label="3D map of the glove's sensors" data-i18n-aria="dev.map.aria"></canvas>
+            <div class="g3d-tags" id="g3d-tags" aria-hidden="true"></div>
+            <div class="g3d-empty" id="g3d-empty"></div>
+          </div>
+          <div class="g3d-views" id="g3d-views"></div>
+        </div>
+        <!-- Simulated glove's keys (dev.js devRenderSim): a side column beside
+             the hand they move, present only while the simulator runs. -->
+        <div class="dev-sim" id="dev-sim" hidden></div>
+      </div>
+
+      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.signal">Live Signal</h2><div class="sh-line"></div></div>
+      <div class="dev-scope-panel">
+        <div class="dev-scope-bar" id="dev-scope-tools"></div>
+        <div class="dev-legend" id="dev-legend"></div>
+        <div class="dev-scope-wrap"><canvas id="dev-scope" aria-label="Live sensor trace" data-i18n-aria="dev.scope.aria"></canvas>
+          <div class="dev-scope-empty" id="dev-scope-empty" data-i18n="dev.scope.empty">Not connected &#8212; no signal.</div></div>
+      </div>
+      <div class="dev-chan-grid" id="dev-channels"></div>
 
       <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.motion">Motion &#8212; Onboard IMU</h2><div class="sh-line"></div>
         <span class="cmp-legend" data-i18n="dev.motion.legend">accelerometer + gyroscope, 100 Hz</span></div>
@@ -1396,15 +1435,20 @@ button,input{font:inherit;color:inherit}
         Spec: <code>docs/glove/GLOVE_FIRMWARE_PLAN.md</code> &#167;5d.</p>
       <div class="dev-imu" id="dev-imu"></div>
 
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.health">Stream Health</h2><div class="sh-line"></div></div>
-      <div class="dev-health" id="dev-health"></div>
-
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.cmds">Board Commands</h2><div class="sh-line"></div></div>
-      <div class="dev-actions" id="dev-cmds"></div>
-
-      <div class="section-head" style="margin-top:36px"><h2 data-i18n="dev.sec.console">Serial Console</h2><div class="sh-line"></div>
-        <span class="cmp-legend" id="dev-console-tools"></span></div>
-      <pre class="dev-console" id="dev-console" tabindex="0"></pre>
+      <div class="dev-card dev-console-card">
+        <div class="dev-line">
+          <details class="dev-fold" id="dev-console-fold">
+            <summary class="dev-line-head">
+              <span class="dev-line-lab" data-i18n="dev.sec.console">Serial Console</span>
+              <span class="dev-line-main dev-val" id="dev-console-count"></span>
+            </summary>
+            <div class="dev-line-more">
+              <div class="dev-keys dev-console-tools" id="dev-console-tools"></div>
+              <pre class="dev-console" id="dev-console" tabindex="0"></pre>
+            </div>
+          </details>
+        </div>
+      </div>
 
       <p class="analysis-disclaimer" data-i18n="dev.disclaimer">
         Only one program may hold a COM port at a time &#8212; close the Arduino Serial Monitor

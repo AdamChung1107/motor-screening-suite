@@ -21,7 +21,8 @@
      1. palm down, flat      -> gravity reads along the back of the hand
      2. fingers up, palm to the screen -> gravity reads along the fingers
    From those two directions (in board axes) comes the board->hand rotation,
-   and pose 2 also fixes the heading. */
+   and pose 2 also fixes the heading. Before that, DEFAULT_MOUNT stands in,
+   so the hand moves from the first frame. */
 
 export const KP = 1.0;               // gravity pull on tilt, 1/s
 export const ACC_TRUST_G = 0.15;     // use gravity only while | |a| - 1 g | < this
@@ -186,8 +187,8 @@ function calSample(f, a) {
    direction used is the fingers' when they are fairly level, else the palm's
    (fingers up, palm to the screen — calibration pose 2). */
 export function resetHeading(f) {
-  if (!f.mount) return false;
-  const toEarth = qmul(f.q, f.mount);                      // hand -> earth
+  if (!f.ready) return false;
+  const toEarth = qmul(f.q, mountOf(f));                   // hand -> earth
   const fingers = qrot(toEarth, [0, 1, 0]);
   const palm = qrot(toEarth, [0, 0, 1]);
   let d = [fingers[0], fingers[1], 0];
@@ -199,11 +200,22 @@ export function resetHeading(f) {
   return true;
 }
 
-/* hand -> screen, or null until calibrated. */
+/* hand -> screen, or null until there is a heading. */
 export function handToScreen(f) {
-  if (!f.ready || !f.mount || !f.heading) return null;
-  return qmul(f.heading, qmul(f.q, f.mount));
+  if (!f.ready || !f.heading) return null;
+  return qmul(f.heading, qmul(f.q, mountOf(f)));
 }
+
+/* Until the two-pose calibration has run, the hand still moves: it assumes
+   the board lies flat on the back of the hand, chip side out, with its +Y
+   arrow toward the fingers (how the MPU6050 breakout is strapped on). Tilt
+   is right whenever that holds; if the board sits another way the hand
+   turns the wrong way round, and the calibration is what fixes that. */
+export const DEFAULT_MOUNT = (() => {
+  const fingers = [0, 1, 0], palmar = [0, 0, -1];
+  return qFromBasis(cross(fingers, palmar), fingers, palmar);
+})();
+export function mountOf(f) { return f.mount || DEFAULT_MOUNT; }
 
 /* Mount + hand side survive a reload; heading cannot (the filter's heading
    restarts from zero each time), so it is re-set from the current pose. */

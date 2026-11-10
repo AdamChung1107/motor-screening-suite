@@ -35,6 +35,11 @@ _MAX_SANE_GAP = 1_000_000
 #: apply the wrong curve and print a confident, wrong number.
 KIND_FSR = "fsr"
 KIND_FLEX = "flex"
+#: FlexiForce A401 palm pads (``h0..h2``, GRIP_TEST_PLAN.md §0.3). Never the
+#: FSR402 curve: the A401 is linear in conductance and needs its own per-sensor
+#: calibration, so until one exists it is shown as resistance and conductance.
+#: Fw 0.11.1 wires h0 as a plain divider, so ``sensor_ohms()`` still applies.
+KIND_FLEXIFORCE = "flexiforce"
 #: Onboard IMU channels. Deliberately *not* divider sensors: they carry no
 #: ``r_fixed``, and running them through :func:`sensor_ohms` would produce a
 #: confident resistance for an acceleration. Values arrive as integer
@@ -47,7 +52,7 @@ KIND_UNKNOWN = "unknown"
 IMU_KINDS = (KIND_ACCEL, KIND_GYRO)
 
 #: Kinds a banner may declare. Anything else is carried through as unknown.
-KNOWN_KINDS = (KIND_FSR, KIND_FLEX, KIND_ACCEL, KIND_GYRO)
+KNOWN_KINDS = (KIND_FSR, KIND_FLEX, KIND_FLEXIFORCE, KIND_ACCEL, KIND_GYRO)
 
 #: IMU column names in frame order, matching the firmware's ``IMU_COLS``.
 IMU_COLS = ("ax", "ay", "az", "gx", "gy", "gz")
@@ -61,7 +66,8 @@ def kind_from_name(name: str) -> str:
 
     The fallback for firmware older than the banner's ``chan=`` field. The
     naming convention predates that field and is stable: ``f0..f4`` are flex,
-    ``p0..p5`` are pressure (GLOVE_FIRMWARE_PLAN.md §4.1), and the six IMU
+    ``p0..p5`` are pressure (GLOVE_FIRMWARE_PLAN.md §4.1), ``h0..h2`` the palm
+    A401s (GRIP_TEST_PLAN.md §5), and the six IMU
     columns are named exactly ``ax..gz``.
 
     The IMU names are matched in full, before the single-letter rule: ``f0`` is
@@ -78,6 +84,8 @@ def kind_from_name(name: str) -> str:
         return KIND_FLEX
     if head == "p":
         return KIND_FSR
+    if head == "h":
+        return KIND_FLEXIFORCE
     return KIND_UNKNOWN
 
 
@@ -126,6 +134,10 @@ class GloveBanner:
     r_fixed: int = 10000
     imu: str = "none"
     imu_scale: int = IMU_SCALE_DEFAULT
+    #: Why the board last booted (fw 0.10.3+): nRF52840 RESETREAS names joined
+    #: with '+', e.g. "pin", "sreq", "lockup", or "por" for power-on/brown-out.
+    #: Empty from older firmware and the simulator.
+    rst: str = ""
     emg: int = 0
     cols: tuple[str, ...] = ()
     chan: tuple[ChannelMeta, ...] = ()
@@ -263,6 +275,7 @@ def parse_banner(line: str) -> GloveBanner | None:
         r_fixed=default_r,
         imu=kv.get("imu", "none"),
         imu_scale=_to_int(kv.get("imu_scale", ""), IMU_SCALE_DEFAULT) or IMU_SCALE_DEFAULT,
+        rst=kv.get("rst", ""),
         emg=_to_int(kv.get("emg", "0")),
         cols=cols,
         chan=_parse_chan(kv.get("chan", ""), default_r),
